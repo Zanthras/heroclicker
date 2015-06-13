@@ -1,0 +1,15 @@
+run clicker.py
+
+It expects the game to be played in windowed mode with a window size of 1662, 942. It will print how close you are to the right size until you achieve it.
+
+Main gameplay assists right now are to trigger edr's and click the clickable. Hero purchasing is the current feature being worked on.
+
+Application requirements...
+
+Python3
+
+PIL
+pyttsx
+pyautogui
+numpy
+pytesseract
