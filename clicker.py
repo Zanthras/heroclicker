@@ -14,137 +14,102 @@ from collections import defaultdict
 from crab import Crab, STD, COMPOSITE
 from skill import Skill
 from window import Window
+from heroes import Hero
 
-from pytesseract import image_to_string
 
+class Heroes(object):
 
-class Hero(object):
+    def __init__(self, gs):
 
-    buy_coord_offset = (-30, 60)
-
-    def __init__(self, base, gs):
         self.gs = gs
-        self.base = base
-        self.panelheight = 0
-        self.namebox = (0,0,0,0)
-        self.name = ""
-        self.level = 0
-        self.buy_coord = (0,0)
-        self.check_interval = datetime.timedelta(seconds=1)
-        self.lastcheck = datetime.datetime.now()
-        self.intervals = []
-        self.isvisible = True
-        self.ishidden = False
-        self._update_buy_coord()
+        self.tracked = None
+        self.scrollbar = 0
+        self.visible = []
+        self.heroes = {}
 
-    def _update_buy_coord(self):
+    def find_scrollbar(self):
 
-        self.buy_coord = (self.base[0] + self.buy_coord_offset[0], self.base[1] + self.buy_coord_offset[1])
+        scrollbar_x = 789
+        scrollbar_y_top = 313
+        scrollbar_y_bottom = 894
 
-    def ocr_name(self):
+        x = self.gs.windowbox[0] + scrollbar_x
+        scrollbox = (self.gs.windowbox[0] + scrollbar_x,
+                     self.gs.windowbox[1] + scrollbar_y_top,
+                     self.gs.windowbox[0] + scrollbar_x + 1,
+                     self.gs.windowbox[1] + scrollbar_y_bottom)
 
-        textcolor = (102, 51, 204), (254, 254, 254)
+        for y in range(scrollbar_y_bottom-scrollbar_y_top):
+            c = self.gs.screen.getpixel((x, y+self.gs.windowbox[1]+scrollbar_y_top))
+            if c[0] == 255:
+                return y+self.gs.windowbox[1]+scrollbar_y_top
 
-        crop = (self.base[0], self.base[1]+5, self.base[0]+370, self.base[1]+37)
-        myimage = self.gs.screen.crop(crop)
+    def collect_visible_heroes(self):
 
-        mx = crop[2] - crop[0]
-        my = crop[3] - crop[1]
+        bar_location = self.find_scrollbar()
 
-        for y in range(my):
-            for x in range(mx):
-                if myimage.getpixel((x, y)) in textcolor:
-                    myimage.putpixel((x, y), (0,0,0))
-                else:
-                    myimage.putpixel((x, y), (255,255,255))
-
-        self.name = image_to_string(image=myimage)
-        self.name = self.name.replace("<", "c")
-        # print(self.name)
-
-    def ocr_level(self):
-
-        textcolor = (102, 51, 204), (254, 254, 254)
-
-        crop = (self.base[0]+220, self.base[1]+40, self.base[0]+370, self.base[1]+70)
-        myimage = self.gs.screen.crop(crop)
-
-
-        mx = crop[2] - crop[0]
-        my = crop[3] - crop[1]
-
-        for y in range(my):
-            for x in range(mx):
-                if myimage.getpixel((x, y)) in textcolor:
-                    myimage.putpixel((x, y), (0,0,0))
-                else:
-                    myimage.putpixel((x, y), (255,255,255))
-
-        level_raw = image_to_string(image=myimage)
-        level_raw = level_raw.replace("â€˜!", "1")
-        level = ""
-        for char in level_raw:
-            try:
-                int(char)
-                level += char
-            except:
-                pass
-        if level:
-            self.level = int(level)
-
-    def can_buy(self):
-
-        buy = (253,253,0)
-        dont = (254,135,67)
-        box = (self.base[0]-145, self.base[1]+102, self.base[0]-30, self.base[1]+103)
-
-        for x in range(box[2]-box[0]):
-            pix = self.gs.screen.getpixel((box[0]+x, box[1]))
-            if pix == buy:
-                return True
-            elif pix == dont:
-                return False
+        if bar_location == self.scrollbar:
+            return
         else:
-            return False
+            self.scrollbar = bar_location
 
-    def buy_timer(self):
+        herocrop = (self.gs.windowbox[0]+260, self.gs.windowbox[1]+270, self.gs.windowbox[0]+260+10, self.gs.windowbox[3])
 
-        if len(self.intervals) < 2:
-            if datetime.datetime.now() - self.lastcheck > self.check_interval:
-                self.lastcheck = datetime.datetime.now()
-                return True
+        herocolors = [(244, 232, 168), (244, 233, 169), (245, 233, 169), (245, 233, 170), (245, 234, 170),
+                      (245, 234, 171), (245, 235, 171), (245, 235, 172), (246, 235, 172), (246, 236, 173),
+                      (246, 236, 174), ]
+        guildedherocolors = [(255, 219, 82), (255, 219, 83), (255, 220, 83), (255, 221, 84),
+                             (255, 221, 85), (255, 222, 86), (255, 223, 86), (255, 223, 87), (255, 224, 88),
+                             (255, 224, 89), (255, 225, 89), ]
+
+        temp_list = []
+
+        inheropanel = False
+        for i in range(herocrop[3]-herocrop[1]-10):
+            normal = False
+            guilded = False
+            thiscolor = self.gs.screen.getpixel((herocrop[0], herocrop[1] + i))
+            if thiscolor in herocolors:
+                normal = True
+            elif thiscolor in guildedherocolors:
+                guilded = True
+            if normal or guilded:
+                if not inheropanel:
+                    panel = Hero(base=(herocrop[0], herocrop[1] + i), gs=self.gs)
+                    if guilded:
+                        panel.guilded = True
+                    temp_list.append(panel)
+                    inheropanel = panel
+                inheropanel.panelheight += 1
             else:
-                return False
+                inheropanel = False
 
-    def setvisible(self, base=None, level=None, init=False):
+        invalid = []
+        valid_heights = [131, 137, 138]
+        for heropanel in temp_list:
+            if heropanel.panelheight == 131 and heropanel.guilded is not True:
+                invalid.append(heropanel)
+            elif heropanel.panelheight not in valid_heights:
+                invalid.append(heropanel)
 
-        if not init:
-            self.base = base
-            self.level = level
-            self._update_buy_coord()
-        self.isvisible = True
-        self.ishidden = False
 
-        if self not in self.gs.visibleheroes:
-            self.gs.visibleheroes.append(self)
+        for i in invalid:
+            temp_list.remove(i)
 
-    def sethidden(self):
-        self.base = (0,0)
-        self.buy_coord = (0,0)
-        self.isvisible = False
-        self.ishidden = True
+        for h in temp_list:
+            h.ocr_name()
+            h.ocr_level()
 
-        if self in self.gs.visibleheroes:
-            self.gs.visibleheroes.remove(self)
-
-    def __str__(self):
-
-        return self.name + ":" + str(self.level)
-
-    def __repr__(self):
-
-        return self.__str__()
-
+        for hero in self.heroes:
+            self.heroes[hero].sethidden()
+        for newhero in temp_list:
+            if newhero.name in self.heroes:
+                # print("updating existing", newhero.name)
+                self.heroes[newhero.name].setvisible(base=newhero.base, level=newhero.level)
+            else:
+                # print("adding new hero", newhero.name)
+                newhero.setvisible(init=True)
+                self.heroes[newhero.name] = newhero
 
 class GameState(object):
 
@@ -167,13 +132,11 @@ class GameState(object):
         self.idle = False
         self.gamestart = datetime.datetime.now().replace(microsecond=0)
         self.lastclickable = datetime.datetime.now().replace(microsecond=0)
+        self.lastherobuy = datetime.datetime.now()
 
         self.progression_coord = (0, 0)
         self.progression_state = None
-        self.heroes = {}
-        self.visibleheroes = []
-        self.tracked_hero = None
-        self.heroscrollbar = 0
+        self.hero = Heroes(self)
 
     def collect_skill_state(self):
 
@@ -374,78 +337,6 @@ class GameState(object):
                     print("\rMoving the mouse to a better spot since you appear to be idle".ljust(140, " "))
                     self.idle = True
 
-    def find_scrollbar(self):
-
-        scrollbar_x = 789
-        scrollbar_y_top = 313
-        scrollbar_y_bottom = 894
-
-        x = self.windowbox[0] + scrollbar_x
-        scrollbox = (self.windowbox[0] + scrollbar_x,
-                     self.windowbox[1] + scrollbar_y_top,
-                     self.windowbox[0] + scrollbar_x + 1,
-                     self.windowbox[1] + scrollbar_y_bottom)
-
-        for y in range(scrollbar_y_bottom-scrollbar_y_top):
-            c = self.screen.getpixel((x, y+self.windowbox[1]+scrollbar_y_top))
-            if c[0] == 255:
-                return y+self.windowbox[1]+scrollbar_y_top
-
-    def collect_visible_heroes(self):
-
-        bar_location = self.find_scrollbar()
-
-        if bar_location == self.heroscrollbar:
-            return
-        else:
-            self.heroscrollbar = bar_location
-
-        herocrop = (self.windowbox[0]+260, self.windowbox[1]+270, self.windowbox[0]+260+10, self.windowbox[3])
-
-        herocolors = [(244, 232, 168), (244, 233, 169), (245, 233, 169), (245, 233, 170), (245, 234, 170),
-                      (245, 234, 171), (245, 235, 171), (245, 235, 172), (246, 235, 172), (246, 236, 173),
-                      (246, 236, 174), (255, 219, 82), (255, 219, 83), (255, 220, 83), (255, 221, 84),
-                      (255, 221, 85), (255, 222, 86), (255, 223, 86), (255, 223, 87), (255, 224, 88),
-                      (255, 224, 89), (255, 225, 89), ]
-
-        temp_list = []
-
-        inheropanel = False
-        for i in range(herocrop[3]-herocrop[1]-10):
-            thiscolor = self.screen.getpixel((herocrop[0], herocrop[1] + i))
-            if thiscolor in herocolors:
-                if not inheropanel:
-                    panel = Hero(base=(herocrop[0], herocrop[1] + i), gs=self)
-                    temp_list.append(panel)
-                    inheropanel = panel
-                inheropanel.panelheight += 1
-            else:
-                inheropanel = False
-
-        invalid = []
-        valid_heights = [131, 137, 138]
-        for heropanel in temp_list:
-            if heropanel.panelheight not in valid_heights:
-                invalid.append(heropanel)
-
-        for i in invalid:
-            temp_list.remove(i)
-
-        for h in temp_list:
-            h.ocr_name()
-            h.ocr_level()
-
-        for hero in self.heroes:
-            self.heroes[hero].sethidden()
-        for newhero in temp_list:
-            if newhero.name in self.heroes:
-                # print("updating existing", newhero.name)
-                self.heroes[newhero.name].setvisible(base=newhero.base, level=newhero.level)
-            else:
-                # print("adding new hero", newhero.name)
-                newhero.setvisible(init=True)
-                self.heroes[newhero.name] = newhero
-
     def collect_progression(self):
 
         progression_color = (255, 0, 0)
@@ -462,32 +353,19 @@ class GameState(object):
     def dumb_buy(self):
 
         h = None
-        if "Terra" in self.heroes:
-            if self.heroes["Terra"].isvisible:
-                h = self.heroes["Terra"]
+        if "Terra" in self.hero.heroes:
+            if self.hero.heroes["Terra"].isvisible:
+                h = self.hero.heroes["Terra"]
                 self.tracked_hero = h
 
         if h is None:
             return
 
-        # hero buy timer wont increment while game isnt in focus because i cant actually check
-        # if i can buy heroes or not so i have no valid data to work with.
-        if self.infocus:
-            if h.buy_timer():
-                gui.keyDown(key="z")
-                time.sleep(.2)
-                self.update_screen()
-                if h.can_buy():
-                    h.check_interval *= .75
-                    self.click(h.buy_coord)
-                    if not self.progression_state:
-                        print("\nunlocking progression, 25 heroes bought")
-                        self.click(self.progression_coord)
-                else:
-                    h.check_interval *= 2
-                    if h.check_interval > datetime.timedelta(minutes=30):
-                        h.check_interval = datetime.timedelta(minutes=30)
-                gui.keyUp(key="z")
+
+        if h.try_buy(25):
+            if not self.progression_state:
+                print("\nunlocking progression, 25 heroes bought")
+                self.click(self.progression_coord)
 
     def click(self, coord):
         currentMouseX, currentMouseY = gui.position()
@@ -571,7 +449,7 @@ def run():
             gs.collect_skill_state()
             gs.do_ritual()
         gs.collect_progression()
-        gs.collect_visible_heroes()
+        gs.hero.collect_visible_heroes()
         gs.dumb_buy()
         cycletime = datetime.datetime.now()-cycle_start
         if cycletime < datetime.timedelta(seconds=1):
@@ -581,8 +459,8 @@ def run():
         cycle_status = "\rCycleTime:" + str(cycletime)
         cycle_status += " Clickables:" + str(gs.headcrabcount)
         cycle_status += " Loop:" + str(loop)
-        if gs.tracked_hero:
-            cycle_status += " Z Interval:" + str(gs.tracked_hero.check_interval)
+        if gs.hero.tracked:
+            cycle_status += " Z Interval:" + str(gs.hero.tracked.check_interval)
 
         print(cycle_status, end="")
 
