@@ -20,6 +20,8 @@ from pytesseract import image_to_string
 
 class Hero(object):
 
+    buy_coord_offset = (-30, 60)
+
     def __init__(self, base, gs):
         self.gs = gs
         self.base = base
@@ -27,11 +29,17 @@ class Hero(object):
         self.namebox = (0,0,0,0)
         self.name = ""
         self.level = 0
-        self.buy_coord_offset = (-30, 60)
-        self.buy_coord = (base[0] + self.buy_coord_offset[0], base[1] + self.buy_coord_offset[1])
+        self.buy_coord = (0,0)
         self.check_interval = datetime.timedelta(seconds=1)
         self.lastcheck = datetime.datetime.now()
         self.intervals = []
+        self.isvisible = True
+        self.ishidden = False
+        self._update_buy_coord()
+
+    def _update_buy_coord(self):
+
+        self.buy_coord = (self.base[0] + self.buy_coord_offset[0], self.base[1] + self.buy_coord_offset[1])
 
     def ocr_name(self):
 
@@ -52,6 +60,7 @@ class Hero(object):
 
         self.name = image_to_string(image=myimage)
         self.name = self.name.replace("<", "c")
+        # print(self.name)
 
     def ocr_level(self):
 
@@ -107,8 +116,39 @@ class Hero(object):
             else:
                 return False
 
+    def setvisible(self, base=None, level=None, init=False):
+
+        if not init:
+            self.base = base
+            self.level = level
+            self._update_buy_coord()
+        self.isvisible = True
+        self.ishidden = False
+
+        if self not in self.gs.visibleheroes:
+            self.gs.visibleheroes.append(self)
+
+    def sethidden(self):
+        self.base = (0,0)
+        self.buy_coord = (0,0)
+        self.isvisible = False
+        self.ishidden = True
+
+        if self in self.gs.visibleheroes:
+            self.gs.visibleheroes.remove(self)
+
+    def __str__(self):
+
+        return self.name + ":" + str(self.level)
+
+    def __repr__(self):
+
+        return self.__str__()
+
 
 class GameState(object):
+
+    desiredsize = (1662, 942)
 
     def __init__(self, engine):
 
@@ -116,7 +156,6 @@ class GameState(object):
         # left, top, right, bottom
         self.windowbox = (0,0,0,0)
         self.screen = None
-        self.desiredsize = (1662, 942)
         self.silent = False
         self.correctscreen = False
         self.engine = engine
@@ -125,15 +164,16 @@ class GameState(object):
         self.headcrabcount = 0
         self.lastmouse = (0, 0)
         self.playeridletime = datetime.datetime.now().replace(microsecond=0)
+        self.idle = False
         self.gamestart = datetime.datetime.now().replace(microsecond=0)
         self.lastclickable = datetime.datetime.now().replace(microsecond=0)
-        self.progression_coord_offset = (1599, 379)
+
         self.progression_coord = (0, 0)
-        self.progression_color = (255, 0, 0)
         self.progression_state = None
+        self.heroes = {}
         self.visibleheroes = []
-        self.lastherocheck = datetime.datetime.now() - datetime.timedelta(seconds=30)
         self.tracked_hero = None
+        self.heroscrollbar = 0
 
     def collect_skill_state(self):
 
@@ -175,6 +215,8 @@ class GameState(object):
     def collect_screen(self):
 
         self.screen = PIL.ImageGrab.grab()
+        if self.idle:
+            return
         try:
             w = Window(self.screen)
             windowbox = w.find_window()
@@ -188,7 +230,7 @@ class GameState(object):
                         self.engine.say("window position is locked in")
                         self.engine.runAndWait()
                 self.windowbox = windowbox
-                self.progression_coord = (self.windowbox[0] + self.progression_coord_offset[0], self.windowbox[1] + self.progression_coord_offset[1])
+
             else:
                 self.infocus = False
         except:
@@ -321,49 +363,42 @@ class GameState(object):
         if self.lastmouse != currentpos:
             self.playeridletime = currentime
             self.lastmouse = currentpos
+            self.idle = False
         else:
             delta = datetime.timedelta(minutes=10)
             if currentime - self.playeridletime > delta:
                 x, y = currentpos
-                if self.windowbox[0] < x < self.windowbox[2] and self.windowbox[1] < y < self.windowbox[3]:
-                    gui.moveTo(self.windowbox[0]+10, self.windowbox[1]+1)
-                    gui.click(self.windowbox[0]+10, self.windowbox[1]+1)
+                if self.windowbox[0] < x < self.windowbox[2] and self.windowbox[1] < y < self.windowbox[3] and x != self.windowbox[0]+30 and y != self.windowbox[0]+3:
+                    gui.moveTo(self.windowbox[0]+30, self.windowbox[1]+3)
+                    gui.click(self.windowbox[0]+30, self.windowbox[1]+3)
                     print("\rMoving the mouse to a better spot since you appear to be idle".ljust(140, " "))
+                    self.idle = True
 
-    def collect_heroes(self):
+    def find_scrollbar(self):
 
-        textbox = (511, 319, 625, 350)
+        scrollbar_x = 789
+        scrollbar_y_top = 313
+        scrollbar_y_bottom = 894
 
-        box = (self.windowbox[0] + textbox[0],
-               self.windowbox[1] + textbox[1],
-               self.windowbox[0] + textbox[2],
-               self.windowbox[1] + textbox[3],)
+        x = self.windowbox[0] + scrollbar_x
+        scrollbox = (self.windowbox[0] + scrollbar_x,
+                     self.windowbox[1] + scrollbar_y_top,
+                     self.windowbox[0] + scrollbar_x + 1,
+                     self.windowbox[1] + scrollbar_y_bottom)
 
-        myimage = self.screen.crop(box)
-
-
-        mx, my = myimage.size
-
-        output = Image.new(myimage.mode, myimage.size)
-
-        for y in range(my):
-            for x in range(mx):
-                if myimage.getpixel((x, y)) == (254, 254, 254):
-                    myimage.putpixel((x, y), (0,0,0))
-                else:
-                    myimage.putpixel((x, y), (255,255,255))
-
-
-        print(image_to_string(image=myimage))
-
-        sys.exit(0)
+        for y in range(scrollbar_y_bottom-scrollbar_y_top):
+            c = self.screen.getpixel((x, y+self.windowbox[1]+scrollbar_y_top))
+            if c[0] == 255:
+                return y+self.windowbox[1]+scrollbar_y_top
 
     def collect_visible_heroes(self):
 
-        if datetime.datetime.now() - self.lastherocheck < datetime.timedelta(seconds=30):
+        bar_location = self.find_scrollbar()
+
+        if bar_location == self.heroscrollbar:
             return
         else:
-            self.lastherocheck = datetime.datetime.now()
+            self.heroscrollbar = bar_location
 
         herocrop = (self.windowbox[0]+260, self.windowbox[1]+270, self.windowbox[0]+260+10, self.windowbox[3])
 
@@ -382,70 +417,77 @@ class GameState(object):
                 if not inheropanel:
                     panel = Hero(base=(herocrop[0], herocrop[1] + i), gs=self)
                     temp_list.append(panel)
-                    if len(temp_list) == 1:
-                        for h in self.visibleheroes:
-                            if h.base == panel.base:
-                                # print("\nno change to the hero list skipping collection")
-                                return
-                        else:
-                            self.visibleheroes = temp_list
-                    panel.panelheight = 0
                     inheropanel = panel
                 inheropanel.panelheight += 1
             else:
                 inheropanel = False
 
-
-
         invalid = []
         valid_heights = [131, 137, 138]
-        for heropanel in self.visibleheroes:
+        for heropanel in temp_list:
             if heropanel.panelheight not in valid_heights:
                 invalid.append(heropanel)
 
         for i in invalid:
-            self.visibleheroes.remove(i)
+            temp_list.remove(i)
 
-        for h in self.visibleheroes:
+        for h in temp_list:
             h.ocr_name()
             h.ocr_level()
 
-    def dumb_buy(self):
+        for hero in self.heroes:
+            self.heroes[hero].sethidden()
+        for newhero in temp_list:
+            if newhero.name in self.heroes:
+                # print("updating existing", newhero.name)
+                self.heroes[newhero.name].setvisible(base=newhero.base, level=newhero.level)
+            else:
+                # print("adding new hero", newhero.name)
+                newhero.setvisible(init=True)
+                self.heroes[newhero.name] = newhero
 
-        terra = None
-        samurai = None
-        for hero in self.visibleheroes:
-            if hero.name == "Terra":
-                terra = hero
-                self.tracked_hero = terra
+    def collect_progression(self):
 
-        if terra is None:
-            return
+        progression_color = (255, 0, 0)
+        progression_coord_offset = (1599, 379)
+        self.progression_coord = (self.windowbox[0] + progression_coord_offset[0], self.windowbox[1] + progression_coord_offset[1])
 
-        if self.screen.getpixel(self.progression_coord) == self.progression_color:
+        if self.screen.getpixel(self.progression_coord) == progression_color:
             self.progression_state = 0
             # print("progression locked")
         else:
             self.progression_state = 1
             # print("progression open")
 
+    def dumb_buy(self):
+
+        h = None
+        if "Terra" in self.heroes:
+            if self.heroes["Terra"].isvisible:
+                h = self.heroes["Terra"]
+                self.tracked_hero = h
+
+        if h is None:
+            return
+
+        # hero buy timer wont increment while game isnt in focus because i cant actually check
+        # if i can buy heroes or not so i have no valid data to work with.
         if self.infocus:
-            if terra.buy_timer():
+            if h.buy_timer():
                 gui.keyDown(key="z")
                 time.sleep(.2)
                 self.update_screen()
-                if terra.can_buy():
-                    terra.check_interval = terra.check_interval * .75
-                    self.click(terra.buy_coord)
+                if h.can_buy():
+                    h.check_interval *= .75
+                    self.click(h.buy_coord)
                     if not self.progression_state:
                         print("\nunlocking progression, 25 heroes bought")
                         self.click(self.progression_coord)
                 else:
-                    terra.check_interval = terra.check_interval * 2
+                    h.check_interval *= 2
+                    if h.check_interval > datetime.timedelta(minutes=30):
+                        h.check_interval = datetime.timedelta(minutes=30)
                 gui.keyUp(key="z")
-
-
-
 
     def click(self, coord):
         currentMouseX, currentMouseY = gui.position()
@@ -528,6 +570,7 @@ def run():
         if False:
             gs.collect_skill_state()
             gs.do_ritual()
+        gs.collect_progression()
         gs.collect_visible_heroes()
         gs.dumb_buy()
         cycletime = datetime.datetime.now()-cycle_start
@@ -535,7 +578,7 @@ def run():
             # print("time to sleep:", (datetime.timedelta(seconds=1)-cycletime).total_seconds())
             time.sleep((datetime.timedelta(seconds=1)-cycletime).total_seconds())
 
-        cycle_status = "\rCycleTime:" + str(datetime.datetime.now()-cycle_start)
+        cycle_status = "\rCycleTime:" + str(cycletime)
         cycle_status += " Clickables:" + str(gs.headcrabcount)
         cycle_status += " Loop:" + str(loop)
         if gs.tracked_hero:
