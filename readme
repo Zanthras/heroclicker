@@ -2,14 +2,19 @@ run clicker.py
 
 It expects the game to be played in windowed mode with a window size of 1662, 942. It will print how close you are to the right size until you achieve it.
 
-Main gameplay assists right now are to trigger edr's and click the clickable. Hero purchasing is the current feature being worked on.
+Features:
+ Can click the fruit/clickables/headcrabs whatevers for rubies without missing
+ Can execute the dark ritual combo
+ Can be ordered to buy 1/25 of a hero that is anywhere on-screen
+ Will turn progression mode on after buying 25 of a hero if it was turned off
 
 Application requirements...
 
 Python3
 
-PIL
-pyttsx
-pyautogui
-numpy
-pytesseract
+PIL (python 3 version)
+pyttsx (for the audio feedback)
+pyautogui (handles all the mouse/keyboard control)
+numpy (performs the grunt work in image comparison)
+pytesseract (ocr engine to read the hero names/level)
+matplotlib (because i havent commented it out yet)
