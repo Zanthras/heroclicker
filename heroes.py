@@ -158,12 +158,13 @@ class Hero(object):
                     self.gs.click(self.buy_coord)
                     self.gs.lastherobuy = datetime.datetime.now()
                     return True
+                else:
+                    self.check_interval *= 2
+                    if self.check_interval > datetime.timedelta(minutes=30):
+                        self.check_interval = datetime.timedelta(minutes=30)
         finally:
             if amount == 25:
                 gui.keyUp(key="z")
-        self.check_interval *= 2
-        if self.check_interval > datetime.timedelta(minutes=30):
-            self.check_interval = datetime.timedelta(minutes=30)
         return False
 
     def __str__(self):

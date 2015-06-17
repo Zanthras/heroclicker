@@ -356,7 +356,7 @@ class GameState(object):
         if "Terra" in self.hero.heroes:
             if self.hero.heroes["Terra"].isvisible:
                 h = self.hero.heroes["Terra"]
-                self.tracked_hero = h
+                self.hero.tracked = h
 
         if h is None:
             return
@@ -445,7 +445,7 @@ def run():
                     gs.engine.say("\nHead crab found at position " + clickable.location)
                     gs.engine.runAndWait()
 
-        if False:
+        if True:
             gs.collect_skill_state()
             gs.do_ritual()
         gs.collect_progression()
@@ -460,7 +460,9 @@ def run():
         cycle_status += " Clickables:" + str(gs.headcrabcount)
         cycle_status += " Loop:" + str(loop)
         if gs.hero.tracked:
-            cycle_status += " Z Interval:" + str(gs.hero.tracked.check_interval)
+            interval = str(round(gs.hero.tracked.check_interval.total_seconds()))
+            left = str(round((datetime.datetime.now() - gs.hero.tracked.lastcheck).total_seconds()))
+            cycle_status += " Z Interval:" + interval + "/" + left
 
         print(cycle_status, end="")
 
