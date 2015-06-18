@@ -6,6 +6,105 @@ import time
 import pyautogui as gui
 from pytesseract import image_to_string
 
+
+class Heroes(object):
+
+    def __init__(self, gs):
+
+        self.gs = gs
+        self.tracked = None
+        self.scrollbar = 0
+        self.visible = []
+        self.heroes = {}
+
+    def find_scrollbar(self):
+
+        scrollbar_x = 789
+        scrollbar_y_top = 313
+        scrollbar_y_bottom = 894
+
+        x = self.gs.window.box[0] + scrollbar_x
+        scrollbox = (self.gs.window.box[0] + scrollbar_x,
+                     self.gs.window.box[1] + scrollbar_y_top,
+                     self.gs.window.box[0] + scrollbar_x + 1,
+                     self.gs.window.box[1] + scrollbar_y_bottom)
+
+        for y in range(scrollbar_y_bottom-scrollbar_y_top):
+            c = self.gs.window.screen.getpixel((x, y+self.gs.window.box[1]+scrollbar_y_top))
+            if c[0] == 255:
+                return y+self.gs.window.box[1]+scrollbar_y_top
+
+    def collect_visible_heroes(self):
+
+        bar_location = self.find_scrollbar()
+
+        if bar_location == self.scrollbar:
+            return
+        else:
+            self.scrollbar = bar_location
+
+        herocrop = (self.gs.window.box[0]+260, self.gs.window.box[1]+270, self.gs.window.box[0]+260+10, self.gs.window.box[3])
+
+        herocolors = [(244, 232, 168), (244, 233, 169), (245, 233, 169), (245, 233, 170), (245, 234, 170),
+                      (245, 234, 171), (245, 235, 171), (245, 235, 172), (246, 235, 172), (246, 236, 173),
+                      (246, 236, 174), ]
+        guildedherocolors = [(255, 219, 82), (255, 219, 83), (255, 220, 83), (255, 221, 84),
+                             (255, 221, 85), (255, 222, 86), (255, 223, 86), (255, 223, 87), (255, 224, 88),
+                             (255, 224, 89), (255, 225, 89), ]
+
+        temp_list = []
+
+        inheropanel = False
+        for i in range(herocrop[3]-herocrop[1]-10):
+            normal = False
+            guilded = False
+            thiscolor = self.gs.window.screen.getpixel((herocrop[0], herocrop[1] + i))
+            if thiscolor in herocolors:
+                normal = True
+            elif thiscolor in guildedherocolors:
+                guilded = True
+            if normal or guilded:
+                if not inheropanel:
+                    panel = Hero(base=(herocrop[0], herocrop[1] + i), gs=self.gs)
+                    if guilded:
+                        panel.guilded = True
+                    temp_list.append(panel)
+                    inheropanel = panel
+                inheropanel.panelheight += 1
+            else:
+                inheropanel = False
+
+        invalid = []
+        valid_heights = [131, 137, 138]
+        for heropanel in temp_list:
+            if heropanel.panelheight == 131 and heropanel.guilded is not True:
+                invalid.append(heropanel)
+            elif heropanel.panelheight not in valid_heights:
+                invalid.append(heropanel)
+
+        for i in invalid:
+            temp_list.remove(i)
+
+        for h in temp_list:
+            h.ocr_name()
+            h.ocr_level()
+
+        for hero in self.heroes:
+            self.heroes[hero].sethidden()
+        for newhero in temp_list:
+            if newhero.name in self.heroes:
+                # print("updating existing", newhero.name)
+                self.heroes[newhero.name].setvisible(base=newhero.base, level=newhero.level)
+            elif newhero.name:
+                # print("adding new hero", newhero.name)
+                newhero.setvisible(init=True)
+                self.heroes[newhero.name] = newhero
+
+    def collect_all_heroes(self):
+
+        pass
+
+
 class Hero(object):
 
     buy_coord_offset = (-30, 60)
@@ -41,7 +140,7 @@ class Hero(object):
         textcolor = (102, 51, 204), (254, 254, 254)
 
         crop = (self.base[0], self.base[1]+5, self.base[0]+370, self.base[1]+37)
-        myimage = self.gs.screen.crop(crop)
+        myimage = self.gs.window.screen.crop(crop)
 
         mx = crop[2] - crop[0]
         my = crop[3] - crop[1]
@@ -63,7 +162,7 @@ class Hero(object):
             self.name = "Frostleaf"
         elif self.name.find("."):
             self.name = self.name.replace(".", ",")
-        if self.name not in order:
+        if self.name not in order and self.name:
             print("hero name i dont know", self.name)
         else:
             self.order = order[self.name]
@@ -73,7 +172,7 @@ class Hero(object):
         textcolor = (102, 51, 204), (254, 254, 254)
 
         crop = (self.base[0]+220, self.base[1]+40, self.base[0]+370, self.base[1]+70)
-        myimage = self.gs.screen.crop(crop)
+        myimage = self.gs.window.screen.crop(crop)
 
 
         mx = crop[2] - crop[0]
@@ -105,7 +204,7 @@ class Hero(object):
         box = (self.base[0]-145, self.base[1]+102, self.base[0]-30, self.base[1]+103)
 
         for x in range(box[2]-box[0]):
-            pix = self.gs.screen.getpixel((box[0]+x, box[1]))
+            pix = self.gs.window.screen.getpixel((box[0]+x, box[1]))
             if pix == buy:
                 return True
             elif pix == dont:
@@ -148,11 +247,11 @@ class Hero(object):
         try:
             if self.buy_timer():
                 if amount == 25:
-                    if not self.gs.infocus:
+                    if not self.gs.window.infocus:
                         return False
                     gui.keyDown(key="z")
                     time.sleep(.2)
-                    self.gs.update_screen()
+                    self.gs.window.update_screen()
                 if self.can_buy():
                     self.check_interval *= .75
                     self.gs.click(self.buy_coord)
@@ -176,16 +275,16 @@ class Hero(object):
         return self.__str__()
 
 
-order = {'Cid, the Helpful Adventurer':1,
-         'Treebeast':2,
-         'Ivan, the Drunken Brawler':3,
-         'Brittany, Beach Princess':4,
-         'The Wandering Fisherman':5,
-         'Betty Clicker':6,
-         'The Masked Samurai':7,
-         'Leon':8,
-         'The Great Forest Seer':9,
-         'Alexa, Assassin':10,
+order = {'Cid, the Helpful Adventurer': (1, "cid"),
+         'Treebeast': (2, "treebeast"),
+         'Ivan, the Drunken Brawler': (3, "ivan"),
+         'Brittany, Beach Princess': (4, "brittany"),
+         'The Wandering Fisherman': (5, "fisherman"),
+         'Betty Clicker': (6, "betty"),
+         'The Masked Samurai': (7, "samurai"),
+         'Leon': (8, "leon"),
+         'The Great Forest Seer': (9, "seer"),
+         'Alexa, Assassin': (10, "alexa"),
          'Natalia, Ice Apprentice':11,
          'Mercedes, Duchess of Blades':12,
          'Bobby, Bounty Hunter':13,

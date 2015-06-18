@@ -3,126 +3,25 @@ import os
 import sys
 import datetime
 import time
-import subprocess
 import PIL
-from PIL import ImageGrab, Image
+from PIL import ImageGrab
 import pyttsx
 import pyautogui as gui
-import numpy
-from collections import defaultdict
 
 from crab import Crab, STD, COMPOSITE
 from skill import Skill
 from window import Window
-from heroes import Hero
+from heroes import Heroes
 
-
-class Heroes(object):
-
-    def __init__(self, gs):
-
-        self.gs = gs
-        self.tracked = None
-        self.scrollbar = 0
-        self.visible = []
-        self.heroes = {}
-
-    def find_scrollbar(self):
-
-        scrollbar_x = 789
-        scrollbar_y_top = 313
-        scrollbar_y_bottom = 894
-
-        x = self.gs.windowbox[0] + scrollbar_x
-        scrollbox = (self.gs.windowbox[0] + scrollbar_x,
-                     self.gs.windowbox[1] + scrollbar_y_top,
-                     self.gs.windowbox[0] + scrollbar_x + 1,
-                     self.gs.windowbox[1] + scrollbar_y_bottom)
-
-        for y in range(scrollbar_y_bottom-scrollbar_y_top):
-            c = self.gs.screen.getpixel((x, y+self.gs.windowbox[1]+scrollbar_y_top))
-            if c[0] == 255:
-                return y+self.gs.windowbox[1]+scrollbar_y_top
-
-    def collect_visible_heroes(self):
-
-        bar_location = self.find_scrollbar()
-
-        if bar_location == self.scrollbar:
-            return
-        else:
-            self.scrollbar = bar_location
-
-        herocrop = (self.gs.windowbox[0]+260, self.gs.windowbox[1]+270, self.gs.windowbox[0]+260+10, self.gs.windowbox[3])
-
-        herocolors = [(244, 232, 168), (244, 233, 169), (245, 233, 169), (245, 233, 170), (245, 234, 170),
-                      (245, 234, 171), (245, 235, 171), (245, 235, 172), (246, 235, 172), (246, 236, 173),
-                      (246, 236, 174), ]
-        guildedherocolors = [(255, 219, 82), (255, 219, 83), (255, 220, 83), (255, 221, 84),
-                             (255, 221, 85), (255, 222, 86), (255, 223, 86), (255, 223, 87), (255, 224, 88),
-                             (255, 224, 89), (255, 225, 89), ]
-
-        temp_list = []
-
-        inheropanel = False
-        for i in range(herocrop[3]-herocrop[1]-10):
-            normal = False
-            guilded = False
-            thiscolor = self.gs.screen.getpixel((herocrop[0], herocrop[1] + i))
-            if thiscolor in herocolors:
-                normal = True
-            elif thiscolor in guildedherocolors:
-                guilded = True
-            if normal or guilded:
-                if not inheropanel:
-                    panel = Hero(base=(herocrop[0], herocrop[1] + i), gs=self.gs)
-                    if guilded:
-                        panel.guilded = True
-                    temp_list.append(panel)
-                    inheropanel = panel
-                inheropanel.panelheight += 1
-            else:
-                inheropanel = False
-
-        invalid = []
-        valid_heights = [131, 137, 138]
-        for heropanel in temp_list:
-            if heropanel.panelheight == 131 and heropanel.guilded is not True:
-                invalid.append(heropanel)
-            elif heropanel.panelheight not in valid_heights:
-                invalid.append(heropanel)
-
-
-        for i in invalid:
-            temp_list.remove(i)
-
-        for h in temp_list:
-            h.ocr_name()
-            h.ocr_level()
-
-        for hero in self.heroes:
-            self.heroes[hero].sethidden()
-        for newhero in temp_list:
-            if newhero.name in self.heroes:
-                # print("updating existing", newhero.name)
-                self.heroes[newhero.name].setvisible(base=newhero.base, level=newhero.level)
-            else:
-                # print("adding new hero", newhero.name)
-                newhero.setvisible(init=True)
-                self.heroes[newhero.name] = newhero
 
 class GameState(object):
-
-    desiredsize = (1662, 942)
 
     def __init__(self, engine):
 
         self.skills = {}
         # left, top, right, bottom
-        self.windowbox = (0,0,0,0)
-        self.screen = None
+        self.window = Window(self)
         self.silent = False
-        self.correctscreen = False
         self.engine = engine
         self.lastclickablecheck = datetime.datetime.now()
         self.clickableareas = {}
@@ -142,8 +41,8 @@ class GameState(object):
 
         skills = ["clickstorm", "powersurge", "lucky strikes", "metal detector", "golden clicks", "the dark ritual", "super clicks", "energize", "reload"]
 
-        top = self.windowbox[1] + 240
-        left = self.windowbox[0] + 855
+        top = self.window.box[1] + 240
+        left = self.window.box[0] + 855
         height = 61
         width = 62
 
@@ -153,59 +52,15 @@ class GameState(object):
             skillbox = (left, top, left + width, top + height)
             if i + 1 not in self.skills:
                 self.skills[i + 1] = Skill(name=skills[i], imgbox=skillbox, number=i + 1)
-            self.skills[i + 1].ingestcolor(self.screen)
+            self.skills[i + 1].ingestcolor(self.window.screen)
             self.skills[i + 1].setstate()
             top += interval + height
             if i == 2 or i == 5 or i == 7:
                 top += 1
 
-    def adjust_size(self):
-        c = 0
-
-        while True:
-            img = PIL.ImageGrab.grab()
-            w = Window(img)
-            windowbox = w.find_window()
-            fullwindow = img.crop(windowbox)
-            realsize = fullwindow.size
-            print("\rWidth: " + str(self.desiredsize[0]-realsize[0]) + " Height: " + str(self.desiredsize[1]-realsize[1]) + " "+ str(c), end="")
-            if (self.desiredsize[0]-realsize[0], self.desiredsize[1]-realsize[1]) == (0,0):
-                break
-            time.sleep(.1)
-            c+=1
-        print()
-
-    def collect_screen(self):
-
-        self.screen = PIL.ImageGrab.grab()
-        if self.idle:
-            return
-        try:
-            w = Window(self.screen)
-            windowbox = w.find_window()
-            left, top, right, bottom = windowbox
-            windowheight = bottom-top
-            windowwidth = right-left
-            if windowheight == self.desiredsize[1] and windowwidth == self.desiredsize[0]:
-                self.infocus = True
-                if self.windowbox != windowbox:
-                    if not self.silent:
-                        self.engine.say("window position is locked in")
-                        self.engine.runAndWait()
-                self.windowbox = windowbox
-
-            else:
-                self.infocus = False
-        except:
-            pass
-
-    def update_screen(self):
-
-        self.screen = PIL.ImageGrab.grab()
-
     def collect_clickables(self, collect=False):
 
-        left, top, right, bottom = self.windowbox
+        left, top, right, bottom = self.window.box
         # window width 1662 height 942
         # crab  width 45 height 50
 
@@ -247,8 +102,6 @@ class GameState(object):
         rightbottomcrabheightoffset = round(windowheight * magic_rightbottom_top_percent)
         righttopheightoffset = round(windowheight * magic_righttop_top_percent)
 
-        menucrabtopoffset = 0
-
         menucrabbox = (left+menucrabwidthoffset, top+menucrabheightoffset, left+menucrabwidthoffset+crabboxwidth, top+menucrabheightoffset+crabboxheight)
         # 1225 690
         bottomcrabbox = (left+bottomcrabwidthoffset, top+bottomcrabheightoffset, left+bottomcrabwidthoffset+crabboxwidth, top+bottomcrabheightoffset+crabboxheight)
@@ -270,9 +123,8 @@ class GameState(object):
                           (rightbottomcrabbox, "right bottom"),
                           (righttopcrabbox, "right top")]
 
-
         for box, location in clickableboxes:
-            self.clickableareas[location] = Crab(self.screen.crop(box), box=box, location=location)
+            self.clickableareas[location] = Crab(self.window.screen.crop(box), box=box, location=location)
 
         if not collect:
             return self.parseclickableimages()
@@ -280,7 +132,6 @@ class GameState(object):
     def parseclickableimages(self):
 
         results = []
-        scores = []
 
         for location in self.clickableareas:
             clickable = self.clickableareas[location]
@@ -288,11 +139,11 @@ class GameState(object):
             if clickable.score > .75:
                 self.headcrabcount += 1
                 results.append(clickable)
-        readout = [str(self.clickableareas[i].score)[1:4] + " " + self.clickableareas[i].location for i in self.clickableareas]
+        # readout = [str(self.clickableareas[i].score)[1:4] + " " + self.clickableareas[i].location for i in self.clickableareas]
 
         now = datetime.datetime.now().replace(microsecond=0)
 
-        averagetime = (now - self.gamestart)/max(1, self.headcrabcount)
+        # averagetime = (now - self.gamestart)/max(1, self.headcrabcount)
 
         # print("\rFound: " + str(self.headcrabcount) + "; " + ", ".join(readout) + " Interval: " + str(now-self.lastclickable) + " Avg: " + str(averagetime), end="", flush=True)
         # if len(results) > 0:
@@ -331,9 +182,9 @@ class GameState(object):
             delta = datetime.timedelta(minutes=10)
             if currentime - self.playeridletime > delta:
                 x, y = currentpos
-                if self.windowbox[0] < x < self.windowbox[2] and self.windowbox[1] < y < self.windowbox[3] and x != self.windowbox[0]+30 and y != self.windowbox[0]+3:
-                    gui.moveTo(self.windowbox[0]+30, self.windowbox[1]+3)
-                    gui.click(self.windowbox[0]+30, self.windowbox[1]+3)
+                if self.window.box[0] < x < self.window.box[2] and self.window.box[1] < y < self.window.box[3] and x != self.window.box[0]+30 and y != self.window.box[0]+3:
+                    gui.moveTo(self.window.box[0]+30, self.window.box[1]+3)
+                    gui.click(self.window.box[0]+30, self.window.box[1]+3)
                     print("\rMoving the mouse to a better spot since you appear to be idle".ljust(140, " "))
                     self.idle = True
 
@@ -341,9 +192,9 @@ class GameState(object):
 
         progression_color = (255, 0, 0)
         progression_coord_offset = (1599, 379)
-        self.progression_coord = (self.windowbox[0] + progression_coord_offset[0], self.windowbox[1] + progression_coord_offset[1])
+        self.progression_coord = (self.window.box[0] + progression_coord_offset[0], self.window.box[1] + progression_coord_offset[1])
 
-        if self.screen.getpixel(self.progression_coord) == progression_color:
+        if self.window.screen.getpixel(self.progression_coord) == progression_color:
             self.progression_state = 0
             # print("progression locked")
         else:
@@ -361,13 +212,13 @@ class GameState(object):
         if h is None:
             return
 
-
         if h.try_buy(25):
             if not self.progression_state:
                 print("\nunlocking progression, 25 heroes bought")
                 self.click(self.progression_coord)
 
     def click(self, coord):
+
         currentMouseX, currentMouseY = gui.position()
         gui.click(coord[0], coord[1])
         gui.moveTo(currentMouseX, currentMouseY)
@@ -377,19 +228,19 @@ def capture():
 
     gs = GameState(engine=pyttsx.init())
 
-    gs.adjust_size()
+    gs.window.adjust_size()
 
-    SaveDirectory = r'F:\Documents\Python\heroclicker\unknown'
+    save_directory = r'F:\Documents\Python\heroclicker\unknown'
 
-    gs.collect_screen()
+    gs.window.collect_screen()
 
     time.sleep(2)
     gs.collect_clickables()
-    for clickablename in gs.clickableareas:
+    for clickable_name in gs.clickableareas:
         print()
-        clickable = gs.clickableareas[clickablename]
+        clickable = gs.clickableareas[clickable_name]
         filename = 'ScreenShot_'+str(datetime.datetime.now().replace(microsecond=0)).replace(" ", "_").replace(":", "_")+"_" + clickable.location.replace(" ", "_") + '.bmp'
-        save_as = os.path.join(SaveDirectory, filename)
+        save_as = os.path.join(save_directory, filename)
         clickable.image.save(save_as)
 
     gs.engine.say("Work Complete")
@@ -397,20 +248,19 @@ def capture():
 
 
 def screenshot():
-    '''
+    """
     This function has nothing to do with hero clicker, i made it to screenshot witcher3
-    '''
+    """
 
     engine = pyttsx.init()
 
-    SaveDirectory = r'F:\Documents\Python\heroclicker\unknown'
+    save_directory = r'F:\Documents\Python\heroclicker\unknown'
 
     while True:
-
         time.sleep(2)
         img = PIL.ImageGrab.grab()
         filename = 'ScreenShot_'+str(datetime.datetime.now().replace(microsecond=0)).replace(" ", "_").replace(":", "_") + '.jpg'
-        save_as = os.path.join(SaveDirectory, filename)
+        save_as = os.path.join(save_directory, filename)
         img.save(save_as)
         engine.say("Work Complete")
         engine.runAndWait()
@@ -422,7 +272,7 @@ def run():
 
     gs.silent = True
 
-    gs.adjust_size()
+    gs.window.adjust_size()
 
     loop = 0
     while True:
@@ -431,8 +281,9 @@ def run():
         gs.idle_save()
         # time.sleep(.5)
 
-        gs.collect_screen()
-        if gs.windowbox == (0,0,0,0):
+        gs.window.collect_screen()
+        if gs.window.box == (0, 0, 0, 0):
+            print("do i ever hit this??")
             continue
 
         if datetime.datetime.now() - gs.lastclickablecheck > datetime.timedelta(seconds=10):
@@ -469,4 +320,3 @@ def run():
 
 # capture()
 run()
-
