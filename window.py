@@ -2,6 +2,10 @@ import time
 
 import PIL
 from PIL import ImageGrab
+import pyautogui as gui
+
+from win32con import MOUSEEVENTF_WHEEL
+import win32api
 
 
 class Window(object):
@@ -135,3 +139,19 @@ class Window(object):
     def update_screen(self):
 
         self.screen = PIL.ImageGrab.grab()
+
+    def scroll(self, amount):
+
+        if amount < 120:
+            amount *= 120
+
+        currentMouseX, currentMouseY = gui.position()
+        win32api.mouse_event(MOUSEEVENTF_WHEEL, currentMouseX, currentMouseY, amount, 0)
+        # there is visual lag, prevent further processing until the lag completes
+        time.sleep(.3)
+
+    def click(self, coord):
+
+        currentMouseX, currentMouseY = gui.position()
+        gui.click(coord[0], coord[1])
+        gui.moveTo(currentMouseX, currentMouseY)

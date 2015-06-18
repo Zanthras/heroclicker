@@ -205,9 +205,10 @@ class GameState(object):
 
         h = None
         if "Terra" in self.hero.heroes:
-            if self.hero.heroes["Terra"].isvisible:
-                h = self.hero.heroes["Terra"]
-                self.hero.tracked = h
+            h = self.hero.heroes["Terra"]
+            self.hero.tracked = h
+            if self.hero.heroes["Terra"].ishidden:
+                h.scroll_to()
 
         if h is None:
             return
@@ -300,7 +301,10 @@ def run():
             gs.collect_skill_state()
             gs.do_ritual()
         gs.collect_progression()
+        if not gs.hero.heroes:
+            gs.hero.collect_all_heroes()
         gs.hero.collect_visible_heroes()
+
         gs.dumb_buy()
         cycletime = datetime.datetime.now()-cycle_start
         if cycletime < datetime.timedelta(seconds=1):

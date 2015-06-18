@@ -2,6 +2,9 @@ __author__ = 'Joel'
 
 import datetime
 import time
+import sys
+
+
 
 import pyautogui as gui
 from pytesseract import image_to_string
@@ -36,11 +39,15 @@ class Heroes(object):
 
     def collect_visible_heroes(self):
 
+        if not self.gs.window.infocus:
+            return
+
         bar_location = self.find_scrollbar()
 
         if bar_location == self.scrollbar:
             return
         else:
+            # print(self.scrollbar)
             self.scrollbar = bar_location
 
         herocrop = (self.gs.window.box[0]+260, self.gs.window.box[1]+270, self.gs.window.box[0]+260+10, self.gs.window.box[3])
@@ -78,8 +85,10 @@ class Heroes(object):
         valid_heights = [131, 137, 138]
         for heropanel in temp_list:
             if heropanel.panelheight == 131 and heropanel.guilded is not True:
+                # print("invalid panel", heropanel.panelheight)
                 invalid.append(heropanel)
             elif heropanel.panelheight not in valid_heights:
+                # print("invalid panel", heropanel.panelheight)
                 invalid.append(heropanel)
 
         for i in invalid:
@@ -102,7 +111,18 @@ class Heroes(object):
 
     def collect_all_heroes(self):
 
-        pass
+        if self.gs.window.infocus:
+            # scroll to the top
+            self.gs.window.scroll(15)
+        self.gs.window.update_screen()
+        self.collect_visible_heroes()
+        for i in range(15):
+            self.gs.window.scroll(-1)
+            self.gs.window.update_screen()
+            self.collect_visible_heroes()
+            # print(self.visible)
+
+        sys.exit(0)
 
 
 class Hero(object):
@@ -113,10 +133,10 @@ class Hero(object):
         self.gs = gs
         self.base = base
         self.panelheight = 0
-        self.namebox = (0,0,0,0)
+        self.namebox = (0, 0, 0, 0)
         self.name = ""
         self.level = 0
-        self.buy_coord = (0,0)
+        self.buy_coord = (0, 0)
         self.check_interval = datetime.timedelta(seconds=1)
         self.lastcheck = datetime.datetime.now()
         self.intervals = []
@@ -125,6 +145,7 @@ class Hero(object):
         self._update_buy_coord()
         self.guilded = False
         self.order = 0
+        self.shortname = ""
 
     def _update_buy_coord(self):
 
@@ -148,9 +169,9 @@ class Hero(object):
         for y in range(my):
             for x in range(mx):
                 if myimage.getpixel((x, y)) in textcolor:
-                    myimage.putpixel((x, y), (0,0,0))
+                    myimage.putpixel((x, y), (0, 0, 0))
                 else:
-                    myimage.putpixel((x, y), (255,255,255))
+                    myimage.putpixel((x, y), (255, 255, 255))
 
         self.name = image_to_string(image=myimage)
         self.name = self.name.replace("<", "c")
@@ -164,8 +185,12 @@ class Hero(object):
             self.name = self.name.replace(".", ",")
         if self.name not in order and self.name:
             print("hero name i dont know", self.name)
-        else:
-            self.order = order[self.name]
+        # for whatever reason the ocr completely fails on lilin, so lets check the scroll bar
+        if not self.name and self.gs.hero.scrollbar > 700:
+            self.name = "Lilin"
+        if self.name:
+            self.order = order[self.name][0]
+            self.shortname = order[self.name][1]
 
     def ocr_level(self):
 
@@ -174,16 +199,15 @@ class Hero(object):
         crop = (self.base[0]+220, self.base[1]+40, self.base[0]+370, self.base[1]+70)
         myimage = self.gs.window.screen.crop(crop)
 
-
         mx = crop[2] - crop[0]
         my = crop[3] - crop[1]
 
         for y in range(my):
             for x in range(mx):
                 if myimage.getpixel((x, y)) in textcolor:
-                    myimage.putpixel((x, y), (0,0,0))
+                    myimage.putpixel((x, y), (0, 0, 0))
                 else:
-                    myimage.putpixel((x, y), (255,255,255))
+                    myimage.putpixel((x, y), (255, 255, 255))
 
         level_raw = image_to_string(image=myimage)
         level_raw = level_raw.replace("â€˜!", "1")
@@ -199,8 +223,8 @@ class Hero(object):
 
     def can_buy(self):
 
-        buy = (253,253,0)
-        dont = (254,135,67)
+        buy = (253, 253, 0)
+        dont = (254, 135, 67)
         box = (self.base[0]-145, self.base[1]+102, self.base[0]-30, self.base[1]+103)
 
         for x in range(box[2]-box[0]):
@@ -234,8 +258,8 @@ class Hero(object):
             self.gs.hero.visible.append(self)
 
     def sethidden(self):
-        self.base = (0,0)
-        self.buy_coord = (0,0)
+        self.base = (0, 0)
+        self.buy_coord = (0, 0)
         self.isvisible = False
         self.ishidden = True
 
@@ -245,7 +269,7 @@ class Hero(object):
     def try_buy(self, amount):
 
         try:
-            if self.buy_timer():
+            if self.isvisible and self.buy_timer():
                 if amount == 25:
                     if not self.gs.window.infocus:
                         return False
@@ -266,6 +290,25 @@ class Hero(object):
                 gui.keyUp(key="z")
         return False
 
+    def scroll_to(self):
+
+        targetscrollpositions = [335, 367, 400, 432, 464, 497, 529, 561, 594, 626, 659, 691, 723, 756, 788]
+
+        pixels_per_scroll = 32
+
+        scrollbar_height = 453
+
+        current_pos = 756
+
+        highest_order_hero = None
+
+        for h in self.gs.hero.heroes:
+            if self.gs.hero.heroes[h].order > highest_order_hero.order:
+                highest_order_hero = self.gs.hero.heroes[h]
+
+
+        pass
+
     def __str__(self):
 
         return self.name + ":" + str(self.level)
@@ -285,28 +328,28 @@ order = {'Cid, the Helpful Adventurer': (1, "cid"),
          'Leon': (8, "leon"),
          'The Great Forest Seer': (9, "seer"),
          'Alexa, Assassin': (10, "alexa"),
-         'Natalia, Ice Apprentice':11,
-         'Mercedes, Duchess of Blades':12,
-         'Bobby, Bounty Hunter':13,
-         'Broyle Lindeoven, Fire Mage':14,
-         "Sir George II, King's Guard":15,
-         'King Midas':16,
-         'Referi Jerator, Ice Wizard':17,
-         'Abaddon':18,
-         'Ma Zhu':19,
-         'Amenhotep':20,
-         'Beastlord':21,
-         'Athena, Goddess of War':22,
-         'Aphrodite, Goddess of Love':23,
-         'Shinatobe, Wind Deity':24,
-         'Grant, The General':25,
-         'Frostleaf':26,
-         'Dread Knight':27,
-         'Atlas':28,
-         'Terra':29,
-         'Phthalo':30,
-         'Orntchya Gladeye, Didensy':31,
-         'Lilin':32,
-         'Cadmia':33,
-         'Alabaster':34,
-         'Astraea':35,}
+         'Natalia, Ice Apprentice': (11, "natalia"),
+         'Mercedes, Duchess of Blades': (12, "mercedes"),
+         'Bobby, Bounty Hunter': (13, "bobby"),
+         'Broyle Lindeoven, Fire Mage': (14, "fire"),
+         "Sir George II, King's Guard": (15, "george"),
+         'King Midas': (16, "midas"),
+         'Referi Jerator, Ice Wizard': (17, "ice"),
+         'Abaddon': (18, "abaddon"),
+         'Ma Zhu': (19, "ma"),
+         'Amenhotep': (20, "amenhotep"),
+         'Beastlord': (21, "beastlord"),
+         'Athena, Goddess of War': (22, "athena"),
+         'Aphrodite, Goddess of Love': (23, "aphrodite"),
+         'Shinatobe, Wind Deity': (24, "shinatobe"),
+         'Grant, The General': (25, "grant"),
+         'Frostleaf': (26, "frostleaf"),
+         'Dread Knight': (27, "dread"),
+         'Atlas': (28, "atlas"),
+         'Terra': (29, "terra"),
+         'Phthalo': (30, "phthalo"),
+         'Orntchya Gladeye, Didensy': (31, "gladeye"),
+         'Lilin': (32, "lilin"),
+         'Cadmia': (33, "cadmia"),
+         'Alabaster': (34, "alabaster"),
+         'Astraea': (35, "astraea"), }
