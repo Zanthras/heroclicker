@@ -5,8 +5,13 @@ It expects the game to be played in windowed mode with a window size of 1662, 94
 Features:
  Can click the fruit/clickables/headcrabs whatevers for rubies without missing
  Can execute the dark ritual combo (all skills are tracked)
- Can be ordered to buy 1/25 of a hero that is anywhere on-screen
- Will turn progression mode on after buying 25 of a hero if it was turned off
+ Can identify all available heroes
+ Can scroll to and purchase 1/25 of any available hero
+ Can turn progression mode on if its turned off (combine with breaking the 25 level barriers)
+
+Yet to implement:
+ Buying skills
+ Ascending
 
 Application requirements...
 

@@ -122,8 +122,6 @@ class Heroes(object):
             self.collect_visible_heroes()
             # print(self.visible)
 
-        sys.exit(0)
-
 
 class Hero(object):
 
@@ -278,7 +276,8 @@ class Hero(object):
                     self.gs.window.update_screen()
                 if self.can_buy():
                     self.check_interval *= .75
-                    self.gs.click(self.buy_coord)
+                    self.gs.window.click(self.buy_coord)
+                    self.level += 25
                     self.gs.lastherobuy = datetime.datetime.now()
                     return True
                 else:
@@ -292,22 +291,74 @@ class Hero(object):
 
     def scroll_to(self):
 
-        targetscrollpositions = [335, 367, 400, 432, 464, 497, 529, 561, 594, 626, 659, 691, 723, 756, 788]
+        scrollpositions = [335, 367, 400, 432, 464, 497, 529, 561, 594, 626, 659, 691, 723, 756, 788]
 
-        pixels_per_scroll = 32
+        currentscroll = 0
+        best_distance = 999
+        if self.gs.hero.scrollbar in scrollpositions:
+            currentscroll = self.gs.hero.scrollbar
+        else:
+            for target in scrollpositions:
+                distance = abs(self.gs.hero.scrollbar - target)
+                if distance < best_distance:
+                    best_distance = distance
+                    currentscroll = target
+        # print("currentscroll", currentscroll)
 
-        scrollbar_height = 453
-
-        current_pos = 756
+        lowestorderhero = None
+        highestorderhero = None
+        for hero in self.gs.hero.visible:
+            if lowestorderhero is None:
+                lowestorderhero = hero
+                highestorderhero = hero
+            else:
+                if hero.order < lowestorderhero.order:
+                    lowestorderhero = hero
+                if hero.order > highestorderhero.order:
+                    highestorderhero = hero
+        # print("lowest", lowestorderhero.shortname)
+        # print("highest", highestorderhero.shortname)
 
         highest_order_hero = None
-
         for h in self.gs.hero.heroes:
+            if highest_order_hero is None:
+                highest_order_hero = self.gs.hero.heroes[h]
             if self.gs.hero.heroes[h].order > highest_order_hero.order:
                 highest_order_hero = self.gs.hero.heroes[h]
+        # print("max highest", highest_order_hero.shortname)
 
+        # example im at 400
+        # betty clicker is the lowest i cant calc she is order #6
+        # self is #3 (brittany) i need to move up one click
+        # or self is #10 (alex) i need to move down one click
 
-        pass
+        scroll = 0
+        if self.order < lowestorderhero.order:
+            ticks_to_top = (currentscroll - 335) // 32
+            # print("ticks to top", ticks_to_top)
+            heroes_per_tick = (lowestorderhero.order - 1) / ticks_to_top
+            # print("heroes per tick", heroes_per_tick)
+            heroes_to_traverse = lowestorderhero.order - self.order
+            # print("heroes to traverse", heroes_to_traverse)
+            for i in range(15):
+                i+=1
+                if heroes_to_traverse < heroes_per_tick*i:
+                    scroll = i
+                    # print("final scroll", scroll)
+                    break
+        else:
+            ticks_to_bottom = (788 - currentscroll) // 32
+            heroes_per_tick = (highest_order_hero.order - highestorderhero.order) / ticks_to_bottom
+            heroes_to_traverse = self.order - highestorderhero.order
+            for i in range(14):
+                i+=1
+                if heroes_to_traverse < heroes_per_tick*i:
+                    scroll = -i
+                    break
+        # pixels_per_scroll = 32
+        # scrollbar_height = 453
+        # current_pos = 756
+        self.gs.window.scroll(scroll)
 
     def __str__(self):
 

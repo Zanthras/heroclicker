@@ -204,11 +204,14 @@ class GameState(object):
     def dumb_buy(self):
 
         h = None
-        if "Terra" in self.hero.heroes:
-            h = self.hero.heroes["Terra"]
+        if "Betty Clicker" in self.hero.heroes:
+            h = self.hero.heroes["Betty Clicker"]
             self.hero.tracked = h
-            if self.hero.heroes["Terra"].ishidden:
+            if self.hero.heroes["Betty Clicker"].ishidden:
                 h.scroll_to()
+
+                self.hero.heroes["Brittany, Beach Princess"].scroll_to()
+                sys.exit(0)
 
         if h is None:
             return
@@ -218,11 +221,46 @@ class GameState(object):
                 print("\nunlocking progression, 25 heroes bought")
                 self.click(self.progression_coord)
 
+    def not_as_dumb_buy(self):
+
+        get_to_500 = None
+        for heroname in self.hero.heroes:
+            if self.hero.heroes[heroname].level < 500 and self.hero.heroes[heroname].order < 27:
+                if get_to_500 is None:
+                    get_to_500 = self.hero.heroes[heroname]
+                else:
+                    if get_to_500.order > self.hero.heroes[heroname].order:
+                        get_to_500 = self.hero.heroes[heroname]
+        if get_to_500:
+            self.hero.tracked = get_to_500
+            if get_to_500.ishidden:
+                # print("scrolling")
+                get_to_500.scroll_to()
+            else:
+                # print("buying")
+                get_to_500.try_buy(25)
+        elif self.hero.heroes["The Masked Samurai"].level < 2400:
+            self.hero.tracked = self.hero.heroes["The Masked Samurai"]
+            if self.hero.heroes["The Masked Samurai"].ishidden:
+                self.hero.heroes["The Masked Samurai"].scroll_to()
+            else:
+                self.hero.heroes["The Masked Samurai"].try_buy(25)
+        else:
+            final_hero = self.hero.heroes["Terra"]
+            self.hero.tracked = final_hero
+            if final_hero.ishidden:
+                final_hero.scroll_to()
+            elif final_hero.try_buy(25):
+                if not self.progression_state:
+                    print("\nunlocking progression, 25 heroes bought")
+                    self.click(self.progression_coord)
+
     def click(self, coord):
 
         currentMouseX, currentMouseY = gui.position()
         gui.click(coord[0], coord[1])
         gui.moveTo(currentMouseX, currentMouseY)
+
 
 
 def capture():
@@ -305,7 +343,7 @@ def run():
             gs.hero.collect_all_heroes()
         gs.hero.collect_visible_heroes()
 
-        gs.dumb_buy()
+        gs.not_as_dumb_buy()
         cycletime = datetime.datetime.now()-cycle_start
         if cycletime < datetime.timedelta(seconds=1):
             # print("time to sleep:", (datetime.timedelta(seconds=1)-cycletime).total_seconds())
@@ -317,7 +355,7 @@ def run():
         if gs.hero.tracked:
             interval = str(round(gs.hero.tracked.check_interval.total_seconds()))
             left = str(round((datetime.datetime.now() - gs.hero.tracked.lastcheck).total_seconds()))
-            cycle_status += " Z Interval:" + interval + "/" + left
+            cycle_status += " Z Interval:" + interval + "/" + left + " " + gs.hero.tracked.shortname
 
         print(cycle_status, end="")
 
