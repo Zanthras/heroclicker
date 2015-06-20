@@ -1,4 +1,5 @@
 import time
+import datetime
 
 import PIL
 from PIL import ImageGrab
@@ -18,6 +19,7 @@ class Window(object):
         self.box = (0, 0, 0, 0)
         self.desiredsize = (1662, 942)
         self.infocus = False
+
 
     def find_window(self):
 
@@ -134,6 +136,7 @@ class Window(object):
             else:
                 self.infocus = False
         except:
+            self.infocus = False
             pass
 
     def update_screen(self):

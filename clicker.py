@@ -3,10 +3,12 @@ import os
 import sys
 import datetime
 import time
+
 import PIL
 from PIL import ImageGrab
 import pyttsx
 import pyautogui as gui
+from pytesseract import image_to_string
 
 from crab import Crab, STD, COMPOSITE
 from skill import Skill
@@ -23,19 +25,30 @@ class GameState(object):
         self.window = Window(self)
         self.silent = False
         self.engine = engine
-        self.lastclickablecheck = datetime.datetime.now()
-        self.clickableareas = {}
-        self.headcrabcount = 0
+        self.gamestart = datetime.datetime.now().replace(microsecond=0)
+        self.ascensionstart = datetime.datetime.now()
+        # Information for determining if there is a human at the desk
         self.lastmouse = (0, 0)
         self.playeridletime = datetime.datetime.now().replace(microsecond=0)
         self.idle = False
-        self.gamestart = datetime.datetime.now().replace(microsecond=0)
+        # Headcrab/Fish/Clickable Information
+        self.lastclickablecheck = datetime.datetime.now()
+        self.clickableareas = {}
+        self.headcrabcount = 0
         self.lastclickable = datetime.datetime.now().replace(microsecond=0)
-        self.lastherobuy = datetime.datetime.now()
-
+        # Auto level progression information
         self.progression_coord = (0, 0)
         self.progression_state = None
+        # Timer for preventing OCR after any hero has been purchased
+        self.lastherobuy = datetime.datetime.now() - datetime.timedelta(seconds=3)
+        # heroes module, all hero information is there
         self.hero = Heroes(self)
+        # Hero Souls information
+        self.souls = 0
+        self.peakspm = 0
+        self.soulstimer = datetime.datetime.now() - datetime.timedelta(seconds=20)
+        # What step am I on for the gameplay
+        self.step = "None"
 
     def collect_skill_state(self):
 
@@ -195,61 +208,121 @@ class GameState(object):
         self.progression_coord = (self.window.box[0] + progression_coord_offset[0], self.window.box[1] + progression_coord_offset[1])
 
         if self.window.screen.getpixel(self.progression_coord) == progression_color:
+            if self.progression_state:
+                for heroname in self.hero.heroes:
+                    self.hero.heroes[heroname].progression_level = self.hero.heroes[heroname].level
             self.progression_state = 0
             # print("progression locked")
         else:
             self.progression_state = 1
             # print("progression open")
 
-    def dumb_buy(self):
+    def collect_souls(self):
 
-        h = None
-        if "Betty Clicker" in self.hero.heroes:
-            h = self.hero.heroes["Betty Clicker"]
-            self.hero.tracked = h
-            if self.hero.heroes["Betty Clicker"].ishidden:
-                h.scroll_to()
-
-                self.hero.heroes["Brittany, Beach Princess"].scroll_to()
-                sys.exit(0)
-
-        if h is None:
+        now = datetime.datetime.now()
+        # visual flair from buying would screw up the OCR
+        if now - self.lastherobuy < datetime.timedelta(seconds=2):
             return
 
-        if h.try_buy(25):
-            if not self.progression_state:
-                print("\nunlocking progression, 25 heroes bought")
-                self.click(self.progression_coord)
+        # Collect hero souls every 20 seconds since OCR isnt CPU Free
+        if not now - datetime.timedelta(seconds=11) > self.soulstimer:
+            return
+        else:
+            self.soulstimer = now
+
+        crop = (self.window.box[0]+525, self.window.box[1]+250, self.window.box[0]+525+285, self.window.box[1]+250+17)
+        image = self.window.screen.crop(crop)
+
+        mx = crop[2] - crop[0]
+        my = crop[3] - crop[1]
+
+        for y in range(my):
+            for x in range(mx):
+                if image.getpixel((x, y)) == (254, 254, 254):
+                    image.putpixel((x, y), (0, 0, 0))
+                else:
+                    image.putpixel((x, y), (255, 255, 255))
+
+        raw_souls = image_to_string(image=image)
+        cleaned_raw = ""
+        chars = "1234567890."
+        past_plus = False
+        for c in raw_souls:
+            if c in chars:
+                cleaned_raw += c
+            if c == "+":
+                past_plus = True
+            if past_plus and c == "e":
+                cleaned_raw += c
+        # print(cleaned_raw)
+        if "e" not in cleaned_raw:
+            if cleaned_raw:
+                self.souls = int(cleaned_raw)
+        else:
+            parts = cleaned_raw.split("e")
+            self.souls = float(parts[0]) ** int(parts[1])
+
+        # print(self.souls)
 
     def not_as_dumb_buy(self):
 
+        first_hero = False
+        if "Frostleaf" in self.hero.heroes:
+            if self.hero.heroes['Frostleaf'].level < 200:
+                first_hero = self.hero.heroes['Frostleaf']
+
         get_to_500 = None
+        upgraded = True
         for heroname in self.hero.heroes:
-            if self.hero.heroes[heroname].level < 500 and self.hero.heroes[heroname].order < 27:
-                if get_to_500 is None:
-                    get_to_500 = self.hero.heroes[heroname]
-                else:
-                    if get_to_500.order > self.hero.heroes[heroname].order:
+            if self.hero.heroes[heroname].order < 27:
+                if self.hero.heroes[heroname].level < 200:
+                    if get_to_500 is None:
                         get_to_500 = self.hero.heroes[heroname]
-        if get_to_500:
+                    else:
+                        if get_to_500.order > self.hero.heroes[heroname].order:
+                            get_to_500 = self.hero.heroes[heroname]
+                if not self.hero.heroes[heroname].upgraded:
+                    # print(self.hero.heroes[heroname], "not upgraded")
+                    upgraded = False
+
+        if first_hero:
+            self.step = "Buying Frostleaf up to 200"
+            self.hero.tracked = first_hero
+            self.hero.tracked.buy_up_to(200)
+        elif get_to_500:
+            self.step = "Buying 200 of every hero up to frostleaf"
             self.hero.tracked = get_to_500
             if get_to_500.ishidden:
                 # print("scrolling")
                 get_to_500.scroll_to()
             else:
                 # print("buying")
-                get_to_500.try_buy(25)
+                get_to_500.buy_up_to(200)
+        elif not upgraded:
+            self.step = "Upgrading all Heroes up to frostleaf"
+            self.hero.upgrade()
         elif self.hero.heroes["The Masked Samurai"].level < 2400:
+            self.step = "Buying 2400 samurai"
             self.hero.tracked = self.hero.heroes["The Masked Samurai"]
             if self.hero.heroes["The Masked Samurai"].ishidden:
                 self.hero.heroes["The Masked Samurai"].scroll_to()
             else:
-                self.hero.heroes["The Masked Samurai"].try_buy(25)
+                if self.hero.tracked.buy_timer():
+                    self.hero.heroes["The Masked Samurai"].buy_up_to(2400)
+                    if self.hero.heroes["The Masked Samurai"].level - self.hero.heroes["The Masked Samurai"].progression_level >= 25 and not self.progression_state:
+                        self.click(self.progression_coord)
+        elif "Terra" not in self.hero.heroes:
+            self.step = "Trying to locate Terra"
+            self.hero.scroll_to_bottom()
         else:
+            self.step = "Buying inf Terra"
             final_hero = self.hero.heroes["Terra"]
             self.hero.tracked = final_hero
             if final_hero.ishidden:
                 final_hero.scroll_to()
+            elif not final_hero.upgraded and final_hero.level >= 200:
+                self.step = "Upgrading Terra"
+                self.hero.upgrade()
             elif final_hero.try_buy(25):
                 if not self.progression_state:
                     print("\nunlocking progression, 25 heroes bought")
@@ -325,17 +398,20 @@ def run():
             print("do i ever hit this??")
             continue
 
-        if datetime.datetime.now() - gs.lastclickablecheck > datetime.timedelta(seconds=10):
-            gs.lastclickablecheck = datetime.datetime.now()
-            for clickable in gs.collect_clickables():
-                print()
-                clickable.savegood()
-                clickable.click()
-                if not gs.silent:
-                    gs.engine.say("\nHead crab found at position " + clickable.location)
-                    gs.engine.runAndWait()
+        gs.collect_souls()
 
-        if True:
+        if False:
+            if datetime.datetime.now() - gs.lastclickablecheck > datetime.timedelta(seconds=10):
+                gs.lastclickablecheck = datetime.datetime.now()
+                for clickable in gs.collect_clickables():
+                    print()
+                    clickable.savegood()
+                    clickable.click()
+                    if not gs.silent:
+                        gs.engine.say("\nHead crab found at position " + clickable.location)
+                        gs.engine.runAndWait()
+
+        if False:
             gs.collect_skill_state()
             gs.do_ritual()
         gs.collect_progression()
@@ -351,11 +427,23 @@ def run():
 
         cycle_status = "\rCycleTime:" + str(cycletime)
         cycle_status += " Clickables:" + str(gs.headcrabcount)
-        cycle_status += " Loop:" + str(loop)
+        # cycle_status += " Loop:" + str(loop)
         if gs.hero.tracked:
             interval = str(round(gs.hero.tracked.check_interval.total_seconds()))
             left = str(round((datetime.datetime.now() - gs.hero.tracked.lastcheck).total_seconds()))
-            cycle_status += " Z Interval:" + interval + "/" + left + " " + gs.hero.tracked.shortname
+            cycle_status += " Buy Interval:" + interval + "/" + left + " " + gs.hero.tracked.shortname
+        ascension_minutes = (datetime.datetime.now() - gs.ascensionstart).total_seconds()/60
+        if ascension_minutes == 0:
+            ascension_minutes = 1
+        if gs.souls == 0:
+            spm = 0
+        else:
+            spm = gs.souls/ascension_minutes
+        if spm > gs.peakspm:
+            gs.peakspm = spm
+        cycle_status += " SPM:" + str(round(spm)) + "/" + str(round(gs.peakspm))
+        # cycle_status += " Focus:" + str(gs.window.infocus)
+        cycle_status += " " + gs.step
 
         print(cycle_status, end="")
 

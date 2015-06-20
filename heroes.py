@@ -19,6 +19,7 @@ class Heroes(object):
         self.scrollbar = 0
         self.visible = []
         self.heroes = {}
+        self.scrollpositions = [335, 367, 400, 432, 464, 497, 529, 561, 594, 626, 659, 691, 723, 756, 788, 791]
 
     def find_scrollbar(self):
 
@@ -27,20 +28,25 @@ class Heroes(object):
         scrollbar_y_bottom = 894
 
         x = self.gs.window.box[0] + scrollbar_x
-        scrollbox = (self.gs.window.box[0] + scrollbar_x,
-                     self.gs.window.box[1] + scrollbar_y_top,
-                     self.gs.window.box[0] + scrollbar_x + 1,
-                     self.gs.window.box[1] + scrollbar_y_bottom)
 
         for y in range(scrollbar_y_bottom-scrollbar_y_top):
             c = self.gs.window.screen.getpixel((x, y+self.gs.window.box[1]+scrollbar_y_top))
             if c[0] == 255:
-                return y+self.gs.window.box[1]+scrollbar_y_top
+                # return y+self.gs.window.box[1]+scrollbar_y_top
+                return self.find_scroll_position(y+self.gs.window.box[1]+scrollbar_y_top)
 
-    def collect_visible_heroes(self):
+    def collect_visible_heroes(self, force=False):
 
         if not self.gs.window.infocus:
             return
+
+        # because buying produces visual flair that covers the ui... ignore collection after buys...
+        if datetime.datetime.now() - self.gs.lastherobuy < datetime.timedelta(seconds=2):
+            if not force:
+                return
+            else:
+                time_left = datetime.timedelta(seconds=2) - (datetime.datetime.now() - self.gs.lastherobuy)
+                time.sleep(time_left.total_seconds())
 
         bar_location = self.find_scrollbar()
 
@@ -115,12 +121,54 @@ class Heroes(object):
             # scroll to the top
             self.gs.window.scroll(15)
         self.gs.window.update_screen()
-        self.collect_visible_heroes()
-        for i in range(15):
+        self.collect_visible_heroes(force=True)
+        # the last scroll is tiny and pointless
+        for i in range(14):
             self.gs.window.scroll(-1)
             self.gs.window.update_screen()
-            self.collect_visible_heroes()
+            self.collect_visible_heroes(force=True)
             # print(self.visible)
+
+    def scroll_to_bottom(self):
+
+        pos = self.find_scroll_position()
+        if pos != self.scrollpositions[-1]:
+            # print("scrolling to bottom")
+            self.gs.window.scroll(-15)
+
+    def find_scroll_position(self, amount=None):
+
+        if amount is None:
+            pos_to_check = self.scrollbar
+        else:
+            pos_to_check = amount
+
+        currentscroll = 0
+        best_distance = 999
+        if pos_to_check in self.scrollpositions:
+            currentscroll = pos_to_check
+        else:
+            for target in self.scrollpositions:
+                distance = abs(pos_to_check - target)
+                if distance < best_distance:
+                    best_distance = distance
+                    currentscroll = target
+        # print("currentscroll", currentscroll)
+        # if amount:
+        #     print("Amount", amount, "current", currentscroll)
+        return currentscroll
+
+    def upgrade(self):
+
+        # TODO: this function is taking some late game shortcuts, I will need to fix for early game
+
+        self.scroll_to_bottom()
+        self.gs.window.click((self.gs.window.box[0] + 467, self.gs.window.box[1] + 825))
+
+        for heroname in self.heroes:
+            if self.heroes[heroname].level >= 200:
+                # print("setting", self.heroes[heroname], "to be upgraded")
+                self.heroes[heroname].upgraded = True
 
 
 class Hero(object):
@@ -135,26 +183,23 @@ class Hero(object):
         self.name = ""
         self.level = 0
         self.buy_coord = (0, 0)
-        self.check_interval = datetime.timedelta(seconds=1)
+        self.check_interval = datetime.timedelta(seconds=.1)
         self.lastcheck = datetime.datetime.now()
-        self.intervals = []
         self.isvisible = True
         self.ishidden = False
         self._update_buy_coord()
         self.guilded = False
         self.order = 0
         self.shortname = ""
+        self.can_buy_100 = True
+        self.upgraded = False
+        self.progression_level = 0
 
     def _update_buy_coord(self):
 
         self.buy_coord = (self.base[0] + self.buy_coord_offset[0], self.base[1] + self.buy_coord_offset[1])
 
     def ocr_name(self):
-
-        # because buying produces visual flair that covers the name... halt ocr after buys...
-        if datetime.datetime.now() - self.gs.lastherobuy < datetime.timedelta(seconds=2):
-            time_left = datetime.timedelta(seconds=2) - (datetime.datetime.now() - self.gs.lastherobuy)
-            time.sleep(time_left.total_seconds())
 
         textcolor = (102, 51, 204), (254, 254, 254)
 
@@ -236,12 +281,11 @@ class Hero(object):
 
     def buy_timer(self):
 
-        if len(self.intervals) < 2:
-            if datetime.datetime.now() - self.lastcheck > self.check_interval:
-                self.lastcheck = datetime.datetime.now()
-                return True
-            else:
-                return False
+        if datetime.datetime.now() - self.lastcheck > self.check_interval:
+            self.lastcheck = datetime.datetime.now()
+            return True
+        else:
+            return False
 
     def setvisible(self, base=None, level=None, init=False):
 
@@ -264,32 +308,100 @@ class Hero(object):
         if self in self.gs.hero.visible:
             self.gs.hero.visible.remove(self)
 
-    def try_buy(self, amount):
+    def try_buy(self, amount, timer=True):
 
-        try:
-            if self.isvisible and self.buy_timer():
-                if amount == 25:
-                    if not self.gs.window.infocus:
-                        return False
-                    gui.keyDown(key="z")
-                    time.sleep(.2)
-                    self.gs.window.update_screen()
-                if self.can_buy():
+        keys = {10: "shift", 25: "z", 100: "ctrl"}
+
+        hotkey = False
+        if amount in keys:
+            hotkey = keys[amount]
+        # print("amount", amount, "hotkey", hotkey)
+
+        if timer:
+            if not self.buy_timer():
+                return False
+        if self.isvisible:
+            if hotkey:
+                if not self.gs.window.infocus:
+                    # print("exiting because window isnt in focus")
+                    return False
+                gui.keyDown(key=hotkey)
+                time.sleep(.2)
+                self.gs.window.update_screen()
+            if self.can_buy():
+                if timer:
                     self.check_interval *= .75
-                    self.gs.window.click(self.buy_coord)
-                    self.level += 25
-                    self.gs.lastherobuy = datetime.datetime.now()
-                    return True
-                else:
+                self.gs.window.click(self.buy_coord)
+                self.level += amount
+                self.gs.lastherobuy = datetime.datetime.now()
+                if hotkey:
+                    gui.keyUp(key=hotkey)
+                return True
+            else:
+                if timer:
                     self.check_interval *= 2
                     if self.check_interval > datetime.timedelta(minutes=30):
                         self.check_interval = datetime.timedelta(minutes=30)
-        finally:
-            if amount == 25:
-                gui.keyUp(key="z")
+        if hotkey:
+            gui.keyUp(key=hotkey)
         return False
 
+    def buy_up_to(self, amount):
+
+        if not self.gs.window.infocus:
+            return
+
+        can_buy_25 = True
+        can_buy_10 = True
+        purchased = False
+        purchased_one = False
+        while self.level < amount:
+            if self.can_buy_100 and amount-self.level >= 100:
+                # print("trying to buy 100", self)
+                if not self.try_buy(100, timer=False):
+                    # print("cant ever buy 100 of", self)
+                    self.can_buy_100 = False
+                else:
+                    purchased = True
+            elif can_buy_25 and amount-self.level >= 25:
+                # print("trying to buy 25", self)
+                if not self.try_buy(25, timer=False):
+                    # print("cant buy 25 of", self)
+                    can_buy_25 = False
+                else:
+                    purchased = True
+            elif can_buy_10 and amount-self.level >= 10:
+                # print("trying to buy 10", self)
+                if not self.try_buy(10, timer=False):
+                    # print("cant buy 10 of", self)
+                    can_buy_10 = False
+                else:
+                    purchased = True
+            else:
+                # print("trying to buy 1", self)
+                self.gs.window.update_screen()
+                if not self.try_buy(1, timer=False):
+                    # print("done buying", self)z
+                    if purchased:
+                        self.check_interval *= .75
+                    else:
+                        if amount-self.level < 10 and purchased_one:
+                            self.check_interval *= .75
+                        else:
+                            self.check_interval *= 1.5
+                            if self.check_interval > datetime.timedelta(minutes=30):
+                                self.check_interval = datetime.timedelta(minutes=30)
+                    return
+                else:
+                    purchased_one = True
+
     def scroll_to(self):
+
+        DEBUG = False
+
+        # if there are no visible heroes calculation is impossible dont do shit.
+        if not self.gs.hero.visible:
+            return
 
         scrollpositions = [335, 367, 400, 432, 464, 497, 529, 561, 594, 626, 659, 691, 723, 756, 788]
 
@@ -303,7 +415,8 @@ class Hero(object):
                 if distance < best_distance:
                     best_distance = distance
                     currentscroll = target
-        # print("currentscroll", currentscroll)
+        if DEBUG:
+            print("currentscroll", currentscroll)
 
         lowestorderhero = None
         highestorderhero = None
@@ -316,8 +429,9 @@ class Hero(object):
                     lowestorderhero = hero
                 if hero.order > highestorderhero.order:
                     highestorderhero = hero
-        # print("lowest", lowestorderhero.shortname)
-        # print("highest", highestorderhero.shortname)
+        if DEBUG:
+            print("lowest", lowestorderhero.shortname)
+            print("highest", highestorderhero.shortname)
 
         highest_order_hero = None
         for h in self.gs.hero.heroes:
@@ -325,7 +439,8 @@ class Hero(object):
                 highest_order_hero = self.gs.hero.heroes[h]
             if self.gs.hero.heroes[h].order > highest_order_hero.order:
                 highest_order_hero = self.gs.hero.heroes[h]
-        # print("max highest", highest_order_hero.shortname)
+        if DEBUG:
+            print("max highest", highest_order_hero.shortname)
 
         # example im at 400
         # betty clicker is the lowest i cant calc she is order #6
@@ -335,29 +450,42 @@ class Hero(object):
         scroll = 0
         if self.order < lowestorderhero.order:
             ticks_to_top = (currentscroll - 335) // 32
-            # print("ticks to top", ticks_to_top)
+            if DEBUG:
+                print("ticks to top", ticks_to_top)
             heroes_per_tick = (lowestorderhero.order - 1) / ticks_to_top
-            # print("heroes per tick", heroes_per_tick)
+            if DEBUG:
+                print("heroes per tick", heroes_per_tick)
             heroes_to_traverse = lowestorderhero.order - self.order
-            # print("heroes to traverse", heroes_to_traverse)
+            if DEBUG:
+                print("heroes to traverse", heroes_to_traverse)
             for i in range(15):
-                i+=1
+                i += 1
                 if heroes_to_traverse < heroes_per_tick*i:
                     scroll = i
-                    # print("final scroll", scroll)
+                    if DEBUG:
+                        print("final scroll", scroll)
                     break
         else:
             ticks_to_bottom = (788 - currentscroll) // 32
+            if DEBUG:
+                print("ticks to bottom", ticks_to_bottom)
             heroes_per_tick = (highest_order_hero.order - highestorderhero.order) / ticks_to_bottom
+            if DEBUG:
+                print("heroes per tick", heroes_per_tick)
             heroes_to_traverse = self.order - highestorderhero.order
+            if DEBUG:
+                print("heroes to traverse", heroes_to_traverse)
             for i in range(14):
-                i+=1
+                i += 1
                 if heroes_to_traverse < heroes_per_tick*i:
                     scroll = -i
+                    if DEBUG:
+                        print("final scroll", scroll)
                     break
         # pixels_per_scroll = 32
         # scrollbar_height = 453
         # current_pos = 756
+        self.gs.step = "Scrolling to " + self.shortname
         self.gs.window.scroll(scroll)
 
     def __str__(self):
