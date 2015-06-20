@@ -304,12 +304,12 @@ class GameState(object):
         elif self.hero.heroes["The Masked Samurai"].level < 2400:
             self.step = "Buying 2400 samurai"
             self.hero.tracked = self.hero.heroes["The Masked Samurai"]
-            if self.hero.heroes["The Masked Samurai"].ishidden:
-                self.hero.heroes["The Masked Samurai"].scroll_to()
+            if self.hero.tracked.ishidden:
+                self.hero.tracked.scroll_to()
             else:
                 if self.hero.tracked.buy_timer():
-                    self.hero.heroes["The Masked Samurai"].buy_up_to(2400)
-                    if self.hero.heroes["The Masked Samurai"].level - self.hero.heroes["The Masked Samurai"].progression_level >= 25 and not self.progression_state:
+                    self.hero.tracked.buy_up_to(2400)
+                    if self.hero.tracked.level - self.hero.tracked.progression_level >= 25 and not self.progression_state:
                         self.click(self.progression_coord)
         elif "Terra" not in self.hero.heroes:
             self.step = "Trying to locate Terra"

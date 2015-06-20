@@ -6,12 +6,14 @@ Features:
  Can click the fruit/clickables/headcrabs whatevers for rubies without missing
  Can execute the dark ritual combo (all skills are tracked)
  Can identify all available heroes
- Can scroll to and purchase 1/25 of any available hero
- Can turn progression mode on if its turned off (combine with breaking the 25 level barriers)
+ Can scroll to and purchase either set increments (1/10/25/100) of any hero or up to any amount
+ Can turn progression mode on if its turned off. tracks every hero's skill level when it gets turned off (allows for simple 25 level comparisons)
+ Can click the buy all skills button on demand
+ Can track souls and calculate peak souls per minute
 
 Yet to implement:
- Buying skills
  Ascending
+ Info tracking between script runs (export to csv or something)
 
 Application requirements...
 
