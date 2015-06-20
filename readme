@@ -15,6 +15,17 @@ Yet to implement:
  Ascending
  Info tracking between script runs (export to csv or something)
 
+Refactoring needed:
+ Remove all hardcoded integer based offsets, allow for "dynamic" ones based off user settings
+
+Long term plans:
+ GUI control and stats panel
+ package script as exe with all needed libraries and stuff
+
+Even Longer term plans:
+ Intermediary JSON/XML based orders setup, build an equivalent "not_as_dumb_buy" function completely from that.
+ Build a GUI editor for said JSON/XML datapacket
+
 Application requirements...
 
 Python3
