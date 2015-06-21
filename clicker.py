@@ -35,7 +35,9 @@ class GameState(object):
         self.lastclickablecheck = datetime.datetime.now()
         self.clickableareas = {}
         self.headcrabcount = 0
-        self.lastclickable = datetime.datetime.now().replace(microsecond=0)
+        self.lastclickable = datetime.datetime.now().replace(microsecond=0) - datetime.timedelta(seconds=10)
+        self.clickablesready = []
+        self.click_clickables = True
         # Auto level progression information
         self.progression_coord = (0, 0)
         self.progression_state = None
@@ -47,8 +49,10 @@ class GameState(object):
         self.souls = 0
         self.peakspm = 0
         self.soulstimer = datetime.datetime.now() - datetime.timedelta(seconds=20)
+        self.lastpeak = datetime.datetime.now()
         # What step am I on for the gameplay
         self.step = "None"
+        self.ascensiondesired = False
 
     def collect_skill_state(self):
 
@@ -72,6 +76,11 @@ class GameState(object):
                 top += 1
 
     def collect_clickables(self, collect=False):
+
+        if not datetime.datetime.now() - self.lastclickablecheck > datetime.timedelta(seconds=10):
+            return
+        else:
+            self.lastclickablecheck = datetime.datetime.now()
 
         left, top, right, bottom = self.window.box
         # window width 1662 height 942
@@ -140,7 +149,7 @@ class GameState(object):
             self.clickableareas[location] = Crab(self.window.screen.crop(box), box=box, location=location)
 
         if not collect:
-            return self.parseclickableimages()
+            self.clickablesready = self.parseclickableimages()
 
     def parseclickableimages(self):
 
@@ -224,8 +233,8 @@ class GameState(object):
         if now - self.lastherobuy < datetime.timedelta(seconds=2):
             return
 
-        # Collect hero souls every 20 seconds since OCR isnt CPU Free
-        if not now - datetime.timedelta(seconds=11) > self.soulstimer:
+        # Collect hero souls every 11 seconds since OCR isnt CPU Free
+        if not (now - datetime.timedelta(seconds=11)) > self.soulstimer:
             return
         else:
             self.soulstimer = now
@@ -260,7 +269,15 @@ class GameState(object):
                 self.souls = int(cleaned_raw)
         else:
             parts = cleaned_raw.split("e")
-            self.souls = float(parts[0]) ** int(parts[1])
+            try:
+                hopefully_souls = float(parts[0]) ** int(parts[1])
+            except ValueError:
+                hopefully_souls = 0
+                print("data error on souls", raw_souls)
+            if hopefully_souls > self.souls:
+                self.souls = hopefully_souls
+            else:
+                print("parse error on souls", raw_souls)
 
         # print(self.souls)
 
@@ -288,7 +305,12 @@ class GameState(object):
         if first_hero:
             self.step = "Buying Frostleaf up to 200"
             self.hero.tracked = first_hero
-            self.hero.tracked.buy_up_to(200)
+            if self.hero.tracked.ishidden:
+                self.hero.tracked.scroll_to()
+            else:
+                self.hero.tracked.buy_up_to(200)
+                if not self.progression_state:
+                    self.window.click(self.progression_coord)
         elif get_to_500:
             self.step = "Buying 200 of every hero up to frostleaf"
             self.hero.tracked = get_to_500
@@ -326,14 +348,38 @@ class GameState(object):
             elif final_hero.try_buy(25):
                 if not self.progression_state:
                     print("\nunlocking progression, 25 heroes bought")
-                    self.click(self.progression_coord)
+                    self.window.click(self.progression_coord)
+
+    def calc_souls(self):
+
+        ascension_minutes = (datetime.datetime.now() - self.ascensionstart).total_seconds()/60
+        if ascension_minutes == 0:
+            ascension_minutes = 1
+        if self.souls == 0:
+            spm = 0
+        else:
+            spm = self.souls/ascension_minutes
+        if spm > self.peakspm:
+            self.peakspm = spm
+            # self.soulstimer = datetime.datetime.now() - self.soulstimer
+            self.lastpeak = datetime.datetime.now()
+
+        if (datetime.datetime.now() - self.lastpeak) > datetime.timedelta(minutes=2):
+            # phrase = "Ascend now, two minutes without new peak souls per minute"
+            # self.engine.say(phrase)
+            # self.engine.runAndWait()
+            self.ascensiondesired = True
+            self.hero.ascend()
+        else:
+            self.ascensiondesired = False
+
+        return spm
 
     def click(self, coord):
 
         currentMouseX, currentMouseY = gui.position()
         gui.click(coord[0], coord[1])
         gui.moveTo(currentMouseX, currentMouseY)
-
 
 
 def capture():
@@ -399,17 +445,11 @@ def run():
             continue
 
         gs.collect_souls()
+        gs.collect_clickables()
 
-        if False:
-            if datetime.datetime.now() - gs.lastclickablecheck > datetime.timedelta(seconds=10):
-                gs.lastclickablecheck = datetime.datetime.now()
-                for clickable in gs.collect_clickables():
-                    print()
-                    clickable.savegood()
-                    clickable.click()
-                    if not gs.silent:
-                        gs.engine.say("\nHead crab found at position " + clickable.location)
-                        gs.engine.runAndWait()
+        if gs.click_clickables and gs.clickablesready:
+            gs.clickablesready[0].savegood()
+            gs.clickablesready[0].click()
 
         if False:
             gs.collect_skill_state()
@@ -425,28 +465,20 @@ def run():
             # print("time to sleep:", (datetime.timedelta(seconds=1)-cycletime).total_seconds())
             time.sleep((datetime.timedelta(seconds=1)-cycletime).total_seconds())
 
-        cycle_status = "\rCycleTime:" + str(cycletime)
-        cycle_status += " Clickables:" + str(gs.headcrabcount)
+        cycle_status = "\rCycleTime:" + str(cycletime.seconds) + "." + str(cycletime.microseconds)[:4]
+        cycle_status += " Clickables:" + str(gs.click_clickables)[:1] + str(gs.headcrabcount)
         # cycle_status += " Loop:" + str(loop)
         if gs.hero.tracked:
             interval = str(round(gs.hero.tracked.check_interval.total_seconds()))
             left = str(round((datetime.datetime.now() - gs.hero.tracked.lastcheck).total_seconds()))
-            cycle_status += " Buy Interval:" + interval + "/" + left + " " + gs.hero.tracked.shortname
-        ascension_minutes = (datetime.datetime.now() - gs.ascensionstart).total_seconds()/60
-        if ascension_minutes == 0:
-            ascension_minutes = 1
-        if gs.souls == 0:
-            spm = 0
-        else:
-            spm = gs.souls/ascension_minutes
-        if spm > gs.peakspm:
-            gs.peakspm = spm
+            cycle_status += " Buy Interval:" + interval + "/" + left
+        spm = gs.calc_souls()
         cycle_status += " SPM:" + str(round(spm)) + "/" + str(round(gs.peakspm))
         # cycle_status += " Focus:" + str(gs.window.infocus)
+        cycle_status += " Ascend?:" + str(gs.ascensiondesired)
         cycle_status += " " + gs.step
 
         print(cycle_status, end="")
 
 
-# capture()
 run()

@@ -164,11 +164,51 @@ class Heroes(object):
 
         self.scroll_to_bottom()
         self.gs.window.click((self.gs.window.box[0] + 467, self.gs.window.box[1] + 825))
+        self.gs.lastherobuy = datetime.datetime.now()
 
         for heroname in self.heroes:
             if self.heroes[heroname].level >= 200:
                 # print("setting", self.heroes[heroname], "to be upgraded")
                 self.heroes[heroname].upgraded = True
+
+    def ascend(self):
+
+        self.gs.click_clickables = False
+
+
+        god = None
+        if "Amenhotep" in self.heroes:
+            god = self.heroes["Amenhotep"]
+        if god and self.gs.clickablesready:
+            if god.level < 150:
+                god.buy_up_to(150)
+            else:
+                print(" ASCENDED! +", self.gs.souls, "souls")
+                god.scroll_to()
+                self.gs.window.update_screen()
+                self.collect_visible_heroes(force=True)
+                # box = (god.base[0] + 197 - 26, god.base[1] + 103 - 25, god.base[0] + 197 + 26, god.base[1] + 103 + 25)
+                # self.gs.window.screen.crop(box).show()
+                self.gs.window.click((god.base[0]+197, god.base[1]+103))
+                self.gs.window.update_screen()
+                # self.gs.window.screen.show()
+                self.gs.window.click((self.gs.window.box[0]+725, self.gs.window.box[1]+620))
+
+                for heroname in self.heroes:
+                    self.heroes[heroname].reset()
+
+                self.gs.souls = 0
+                self.gs.peakspm = 0
+                self.gs.soulstimer = datetime.datetime.now() - datetime.timedelta(seconds=20)
+                self.gs.lastpeak = datetime.datetime.now()
+                self.gs.click_clickables = True
+                self.ascensionstart = datetime.datetime.now()
+                self.gs.clickablesready[0].savegood()
+                self.gs.clickablesready[0].click()
+                time.sleep(3)
+                self.collect_all_heroes()
+        else:
+            return
 
 
 class Hero(object):
@@ -488,6 +528,16 @@ class Hero(object):
         self.gs.step = "Scrolling to " + self.shortname
         self.gs.window.scroll(scroll)
 
+    def reset(self):
+
+        self.level = 0
+        self.sethidden()
+        self.check_interval = datetime.timedelta(seconds=.1)
+        self.lastcheck = datetime.datetime.now()
+        self.can_buy_100 = True
+        self.upgraded = False
+        self.progression_level = 0
+
     def __str__(self):
 
         return self.name + ":" + str(self.level)
@@ -527,7 +577,7 @@ order = {'Cid, the Helpful Adventurer': (1, "cid"),
          'Atlas': (28, "atlas"),
          'Terra': (29, "terra"),
          'Phthalo': (30, "phthalo"),
-         'Orntchya Gladeye, Didensy': (31, "gladeye"),
+         'Orntchya Gladeye, Didensy': (31, "banana"),
          'Lilin': (32, "lilin"),
          'Cadmia': (33, "cadmia"),
          'Alabaster': (34, "alabaster"),
