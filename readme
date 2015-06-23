@@ -28,9 +28,10 @@ Features:
  Can turn progression mode on if its turned off. tracks every hero's skill level when it gets turned off (allows for simple 25 level comparisons)
  Can click the buy all skills button on demand
  Can track souls and calculate peak souls per minute
+ Can do a clickable based ascension
 
 Yet to implement:
- Ascending
+ Ascending without a clickable.
  Info tracking between script runs (export to csv or something)
 
 Refactoring needed:
