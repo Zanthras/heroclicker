@@ -58,7 +58,7 @@ class Crab(object):
 
     def savegood(self):
 
-        SaveDirectory = r'F:\Documents\Python\heroclicker\clean_fish'
+        SaveDirectory = r'clean_fish'
         filename = 'ScreenShot_'+str(datetime.datetime.now().replace(microsecond=0)).replace(" ", "_").replace(":", "_")+"_" + self.location.replace(" ", "_") + '.bmp'
         save_as = os.path.join(SaveDirectory, filename)
         self.image.save(save_as)
@@ -85,46 +85,16 @@ class Crab(object):
         gui.moveTo(currentMouseX, currentMouseY)
 
 
-def producemask():
-
-    masked_file = r"F:\Documents\Python\heroclicker\source\masked_final.bmp"
-    masked = Image.open(masked_file)
-
-
-    mycrab = Crab(image=masked)
-    mycrab.ingestcolor()
-
-    for y in range(mycrab.maxy):
-        for x in range(mycrab.maxx):
-            if tuple(mycrab.array[y, x]) == WHITE:
-                mycrab.array[y, x] = BLACK
-            else:
-                mycrab.array[y, x] = WHITE
-
-    masked_file_dest = r"F:\Documents\Python\heroclicker\source\masked_inverse.bmp"
-    masked_final = Image.new(masked.mode, masked.size)
-    masked_final.putdata(mycrab.array.flatten().tolist())
-    masked_final.save(masked_file_dest)
-
-
 def parsegood():
 
     from collections import defaultdict
 
     DATA = defaultdict(int)
 
-    # masked_file = r"F:\Documents\Python\heroclicker\source\masked_inverse.bmp"
-    # masked = Image.open(masked_file)
-    # maskedcrab = Crab(masked)
+    averaged_file = r"averaged_fish.bmp"
+    averaged = Crab(Image.new("RGB", (45, 50)))
 
-    ref_file = r"F:\Documents\Python\heroclicker\source\masked_inverse.bmp"
-    ref = Image.open(ref_file)
-
-    averaged_file = r"F:\Documents\Python\heroclicker\source\averaged_fish.bmp"
-    averaged = Crab(Image.new(ref.mode, ref.size))
-
-    std_file = r"F:\Documents\Python\heroclicker\source\std.bmp"
-    stdimage = Crab(Image.new(ref.mode, ref.size))
+    stdimage = Crab(Image.new("RGB", (45, 50)))
 
     cleandirectory = r"F:\Documents\Python\heroclicker\clean_fish"
     cleanlist = os.listdir(cleandirectory)
@@ -194,7 +164,7 @@ numpy.set_printoptions(linewidth=300, edgeitems=9)
 
 STD = numpy.load("masked_std_array_fish.npy")
 
-_averaged_file = r"F:\Documents\Python\heroclicker\source\averaged_fish.bmp"
+_averaged_file = r"averaged_fish.bmp"
 _averaged = Image.open(_averaged_file)
 
 COMPOSITE = Crab(image=_averaged)
