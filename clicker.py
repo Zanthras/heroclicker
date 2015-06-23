@@ -26,7 +26,7 @@ class GameState(object):
         self.silent = False
         self.engine = engine
         self.gamestart = datetime.datetime.now().replace(microsecond=0)
-        self.ascensionstart = datetime.datetime.now()
+        self.ascensionstart = datetime.datetime.now().replace(microsecond=0)
         # Information for determining if there is a human at the desk
         self.lastmouse = (0, 0)
         self.playeridletime = datetime.datetime.now().replace(microsecond=0)
@@ -50,6 +50,8 @@ class GameState(object):
         self.peakspm = 0
         self.soulstimer = datetime.datetime.now() - datetime.timedelta(seconds=20)
         self.lastpeak = datetime.datetime.now()
+        self.firstload = True
+        self._existingsouls = 0
         # What step am I on for the gameplay
         self.step = "None"
         self.ascensiondesired = False
@@ -151,6 +153,93 @@ class GameState(object):
         if not collect:
             self.clickablesready = self.parseclickableimages()
 
+    def collect_souls(self):
+
+        now = datetime.datetime.now()
+        # visual flair from buying would screw up the OCR
+        if now - self.lastherobuy < datetime.timedelta(seconds=2):
+            return
+
+        # Collect hero souls every 11 seconds since OCR isnt CPU Free
+        if not (now - datetime.timedelta(seconds=11)) > self.soulstimer:
+            return
+        else:
+            self.soulstimer = now
+
+        crop = (self.window.box[0]+525, self.window.box[1]+250, self.window.box[0]+525+285, self.window.box[1]+250+17)
+        image = self.window.screen.crop(crop)
+
+        mx = crop[2] - crop[0]
+        my = crop[3] - crop[1]
+
+        for y in range(my):
+            for x in range(mx):
+                if image.getpixel((x, y)) == (254, 254, 254):
+                    image.putpixel((x, y), (0, 0, 0))
+                else:
+                    image.putpixel((x, y), (255, 255, 255))
+
+        raw_souls = image_to_string(image=image)
+        cleaned_raw = ""
+        chars = "1234567890."
+        past_plus = False
+        for c in raw_souls:
+            if c in chars:
+                cleaned_raw += c
+            if c == "+":
+                past_plus = True
+            if past_plus and c == "e":
+                cleaned_raw += c
+        # print(cleaned_raw)
+        if "e" not in cleaned_raw:
+            if cleaned_raw:
+                try:
+                    hopefully_souls = int(cleaned_raw)
+                except ValueError:
+                    # self.window.screen.crop(crop).show()
+                    # sys.exit(0)
+                    hopefully_souls = 0
+                if hopefully_souls > self.souls:
+                    self.souls = hopefully_souls
+                else:
+                    # pretend the soul collection didnt happen
+                    self.soulstimer = now - datetime.timedelta(seconds=11)
+
+        else:
+            parts = cleaned_raw.split("e")
+            try:
+                hopefully_souls = float(parts[0]) ** int(parts[1])
+            except ValueError:
+                hopefully_souls = 0
+                print("data error on souls", raw_souls)
+            if hopefully_souls > self.souls:
+                self.souls = hopefully_souls
+            else:
+                print("parse error on souls", raw_souls)
+
+        if self.firstload and self.souls:
+            self._existingsouls = self.souls
+            self.firstload = False
+            self.ascensionstart -= datetime.timedelta(seconds=60)
+
+        # print(self.souls)
+
+    def collect_progression(self):
+
+        progression_color = (255, 0, 0)
+        progression_coord_offset = (1599, 379)
+        self.progression_coord = (self.window.box[0] + progression_coord_offset[0], self.window.box[1] + progression_coord_offset[1])
+
+        if self.window.screen.getpixel(self.progression_coord) == progression_color:
+            if self.progression_state:
+                for heroname in self.hero.heroes:
+                    self.hero.heroes[heroname].progression_level = self.hero.heroes[heroname].level
+            self.progression_state = 0
+            # print("progression locked")
+        else:
+            self.progression_state = 1
+            # print("progression open")
+
     def parseclickableimages(self):
 
         results = []
@@ -209,77 +298,6 @@ class GameState(object):
                     gui.click(self.window.box[0]+30, self.window.box[1]+3)
                     print("\rMoving the mouse to a better spot since you appear to be idle".ljust(140, " "))
                     self.idle = True
-
-    def collect_progression(self):
-
-        progression_color = (255, 0, 0)
-        progression_coord_offset = (1599, 379)
-        self.progression_coord = (self.window.box[0] + progression_coord_offset[0], self.window.box[1] + progression_coord_offset[1])
-
-        if self.window.screen.getpixel(self.progression_coord) == progression_color:
-            if self.progression_state:
-                for heroname in self.hero.heroes:
-                    self.hero.heroes[heroname].progression_level = self.hero.heroes[heroname].level
-            self.progression_state = 0
-            # print("progression locked")
-        else:
-            self.progression_state = 1
-            # print("progression open")
-
-    def collect_souls(self):
-
-        now = datetime.datetime.now()
-        # visual flair from buying would screw up the OCR
-        if now - self.lastherobuy < datetime.timedelta(seconds=2):
-            return
-
-        # Collect hero souls every 11 seconds since OCR isnt CPU Free
-        if not (now - datetime.timedelta(seconds=11)) > self.soulstimer:
-            return
-        else:
-            self.soulstimer = now
-
-        crop = (self.window.box[0]+525, self.window.box[1]+250, self.window.box[0]+525+285, self.window.box[1]+250+17)
-        image = self.window.screen.crop(crop)
-
-        mx = crop[2] - crop[0]
-        my = crop[3] - crop[1]
-
-        for y in range(my):
-            for x in range(mx):
-                if image.getpixel((x, y)) == (254, 254, 254):
-                    image.putpixel((x, y), (0, 0, 0))
-                else:
-                    image.putpixel((x, y), (255, 255, 255))
-
-        raw_souls = image_to_string(image=image)
-        cleaned_raw = ""
-        chars = "1234567890."
-        past_plus = False
-        for c in raw_souls:
-            if c in chars:
-                cleaned_raw += c
-            if c == "+":
-                past_plus = True
-            if past_plus and c == "e":
-                cleaned_raw += c
-        # print(cleaned_raw)
-        if "e" not in cleaned_raw:
-            if cleaned_raw:
-                self.souls = int(cleaned_raw)
-        else:
-            parts = cleaned_raw.split("e")
-            try:
-                hopefully_souls = float(parts[0]) ** int(parts[1])
-            except ValueError:
-                hopefully_souls = 0
-                print("data error on souls", raw_souls)
-            if hopefully_souls > self.souls:
-                self.souls = hopefully_souls
-            else:
-                print("parse error on souls", raw_souls)
-
-        # print(self.souls)
 
     def not_as_dumb_buy(self):
 
@@ -347,7 +365,7 @@ class GameState(object):
                 self.hero.upgrade()
             elif final_hero.try_buy(25):
                 if not self.progression_state:
-                    print("\nunlocking progression, 25 heroes bought")
+                    # print("\nunlocking progression, 25 heroes bought")
                     self.window.click(self.progression_coord)
 
     def calc_souls(self):
@@ -358,20 +376,32 @@ class GameState(object):
         if self.souls == 0:
             spm = 0
         else:
-            spm = self.souls/ascension_minutes
+            spm = (self.souls-self._existingsouls)/ascension_minutes
         if spm > self.peakspm:
             self.peakspm = spm
             # self.soulstimer = datetime.datetime.now() - self.soulstimer
             self.lastpeak = datetime.datetime.now()
 
-        if (datetime.datetime.now() - self.lastpeak) > datetime.timedelta(minutes=2):
+        if (datetime.datetime.now() - self.lastpeak) > datetime.timedelta(minutes=3):
             # phrase = "Ascend now, two minutes without new peak souls per minute"
             # self.engine.say(phrase)
             # self.engine.runAndWait()
             self.ascensiondesired = True
+            self.click_clickables = False
             self.hero.ascend()
         else:
             self.ascensiondesired = False
+            self.click_clickables = True
+        # debug
+        # try:
+        #     if self.peakspm / spm > 3:
+        #         print()
+        #         print("data anomaly: asc_min", ascension_minutes, "souls", self.souls, "spm", spm, "existing", self._existingsouls)
+        # except ZeroDivisionError:
+        #     pass
+        # if spm < 0:
+        #         print()
+        #         print("data anomaly: asc_min", ascension_minutes, "souls", self.souls, "spm", spm, "existing", self._existingsouls)
 
         return spm
 
@@ -448,8 +478,9 @@ def run():
         gs.collect_clickables()
 
         if gs.click_clickables and gs.clickablesready:
-            gs.clickablesready[0].savegood()
-            gs.clickablesready[0].click()
+            clickable = gs.clickablesready.pop()
+            clickable.savegood()
+            clickable.click()
 
         if False:
             gs.collect_skill_state()
@@ -465,7 +496,11 @@ def run():
             # print("time to sleep:", (datetime.timedelta(seconds=1)-cycletime).total_seconds())
             time.sleep((datetime.timedelta(seconds=1)-cycletime).total_seconds())
 
-        cycle_status = "\rCycleTime:" + str(cycletime.seconds) + "." + str(cycletime.microseconds)[:4]
+        now = datetime.datetime.now().replace(microsecond=0)
+
+        cycle_status = "\rCycle:" + str(cycletime.seconds) + "." + str(cycletime.microseconds)[:3]
+        cycle_status += " Start: " + str(now - gs.gamestart)
+        cycle_status += " Ascension " + str(now - gs.ascensionstart)
         cycle_status += " Clickables:" + str(gs.click_clickables)[:1] + str(gs.headcrabcount)
         # cycle_status += " Loop:" + str(loop)
         if gs.hero.tracked:
@@ -475,7 +510,15 @@ def run():
         spm = gs.calc_souls()
         cycle_status += " SPM:" + str(round(spm)) + "/" + str(round(gs.peakspm))
         # cycle_status += " Focus:" + str(gs.window.infocus)
-        cycle_status += " Ascend?:" + str(gs.ascensiondesired)
+        time_till_ascend = datetime.datetime.now() - gs.lastpeak
+        if time_till_ascend < datetime.timedelta(minutes=3):
+            output = str(round((datetime.timedelta(minutes=3) - time_till_ascend).total_seconds()))
+        elif not gs.ascensiondesired:
+            output = str(round((datetime.timedelta(minutes=3) - time_till_ascend).total_seconds()))
+        else:
+            output = str(gs.ascensiondesired)
+
+        cycle_status += " Ascend:" + output
         cycle_status += " " + gs.step
 
         print(cycle_status, end="")

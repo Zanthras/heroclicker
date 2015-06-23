@@ -19,26 +19,37 @@ class Heroes(object):
         self.scrollbar = 0
         self.visible = []
         self.heroes = {}
-        self.scrollpositions = [335, 367, 400, 432, 464, 497, 529, 561, 594, 626, 659, 691, 723, 756, 788, 791]
+        self.scrollpositions = [4, 36, 69, 101, 133, 166, 198, 230, 263, 295, 328, 360, 392, 425, 457, 460]
+        self.visiblewait = False
 
     def find_scrollbar(self):
 
-        scrollbar_x = 789
-        scrollbar_y_top = 313
-        scrollbar_y_bottom = 894
+        scrollbar_x = self.gs.window.box[0] + 789
+        scrollbar_y_top = self.gs.window.box[1] + 313
+        scrollbar_y_bottom = self.gs.window.box[1] + 894
 
-        x = self.gs.window.box[0] + scrollbar_x
+        # x = self.gs.window.box[0] + scrollbar_x
+
+        # box = (scrollbar_x, scrollbar_y_top, scrollbar_x+40, scrollbar_y_bottom)
+        # self.gs.window.screen.crop(box).show()
+        # sys.exit(0)
+
 
         for y in range(scrollbar_y_bottom-scrollbar_y_top):
-            c = self.gs.window.screen.getpixel((x, y+self.gs.window.box[1]+scrollbar_y_top))
+            c = self.gs.window.screen.getpixel((scrollbar_x, y+scrollbar_y_top))
+            # print(c)
             if c[0] == 255:
-                # return y+self.gs.window.box[1]+scrollbar_y_top
-                return self.find_scroll_position(y+self.gs.window.box[1]+scrollbar_y_top)
+                # print(y)
+                return self.find_scroll_position(y)
 
     def collect_visible_heroes(self, force=False):
 
         if not self.gs.window.infocus:
             return
+        # this is to let functions that dont directly call this method still specify force via a module level global
+        if self.visiblewait:
+            force = True
+            self.visiblewait = False
 
         # because buying produces visual flair that covers the ui... ignore collection after buys...
         if datetime.datetime.now() - self.gs.lastherobuy < datetime.timedelta(seconds=2):
@@ -51,6 +62,7 @@ class Heroes(object):
         bar_location = self.find_scrollbar()
 
         if bar_location == self.scrollbar:
+            # print("scrollbar didnt move")
             return
         else:
             # print(self.scrollbar)
@@ -107,9 +119,13 @@ class Heroes(object):
         for hero in self.heroes:
             self.heroes[hero].sethidden()
         for newhero in temp_list:
+            # print(newhero.name)
             if newhero.name in self.heroes:
                 # print("updating existing", newhero.name)
-                self.heroes[newhero.name].setvisible(base=newhero.base, level=newhero.level)
+                entry = self.heroes[newhero.name]
+                entry.setvisible(base=newhero.base, level=newhero.level)
+                entry._update_coords(newhero.base)
+
             elif newhero.name:
                 # print("adding new hero", newhero.name)
                 newhero.setvisible(init=True)
@@ -127,7 +143,6 @@ class Heroes(object):
             self.gs.window.scroll(-1)
             self.gs.window.update_screen()
             self.collect_visible_heroes(force=True)
-            # print(self.visible)
 
     def scroll_to_bottom(self):
 
@@ -175,11 +190,10 @@ class Heroes(object):
 
         self.gs.click_clickables = False
 
-
         god = None
         if "Amenhotep" in self.heroes:
             god = self.heroes["Amenhotep"]
-        if god and self.gs.clickablesready:
+        if god and self.gs.clickablesready and not self.gs.click_clickables:
             if god.level < 150:
                 god.buy_up_to(150)
             else:
@@ -199,14 +213,16 @@ class Heroes(object):
 
                 self.gs.souls = 0
                 self.gs.peakspm = 0
+                self.gs._existingsouls = 0
                 self.gs.soulstimer = datetime.datetime.now() - datetime.timedelta(seconds=20)
                 self.gs.lastpeak = datetime.datetime.now()
                 self.gs.click_clickables = True
-                self.ascensionstart = datetime.datetime.now()
+                self.gs.ascensionstart = datetime.datetime.now().replace(microsecond=0)
                 self.gs.clickablesready[0].savegood()
                 self.gs.clickablesready[0].click()
                 time.sleep(3)
                 self.collect_all_heroes()
+                self.gs.window.scroll(-2)
         else:
             return
 
@@ -220,6 +236,7 @@ class Hero(object):
         self.base = base
         self.panelheight = 0
         self.namebox = (0, 0, 0, 0)
+        self._update_name_coord()
         self.name = ""
         self.level = 0
         self.buy_coord = (0, 0)
@@ -234,6 +251,17 @@ class Hero(object):
         self.can_buy_100 = True
         self.upgraded = False
         self.progression_level = 0
+        self.box = (self.base[0]-60, self.base[1], self.base[0]+500, self.base[1]+100)
+
+    def _update_coords(self, newbase):
+
+        self.base = newbase
+        self._update_name_coord()
+        self._update_buy_coord()
+
+    def _update_name_coord(self):
+
+        self.namebox = (self.base[0], self.base[1]+5, self.base[0]+370, self.base[1]+37)
 
     def _update_buy_coord(self):
 
@@ -244,6 +272,9 @@ class Hero(object):
         textcolor = (102, 51, 204), (254, 254, 254)
 
         crop = (self.base[0], self.base[1]+5, self.base[0]+370, self.base[1]+37)
+
+        # TODO change it to be self.namebox as soon as you can test
+        # myimage = self.gs.window.screen.crop(self.namebox)
         myimage = self.gs.window.screen.crop(crop)
 
         mx = crop[2] - crop[0]
@@ -350,6 +381,7 @@ class Hero(object):
 
     def try_buy(self, amount, timer=True):
 
+
         keys = {10: "shift", 25: "z", 100: "ctrl"}
 
         hotkey = False
@@ -435,7 +467,10 @@ class Hero(object):
                 else:
                     purchased_one = True
 
-    def scroll_to(self):
+    def scroll_to(self, wait=False):
+
+        if wait:
+            self.gs.visiblewait = True
 
         DEBUG = False
 
@@ -443,14 +478,14 @@ class Hero(object):
         if not self.gs.hero.visible:
             return
 
-        scrollpositions = [335, 367, 400, 432, 464, 497, 529, 561, 594, 626, 659, 691, 723, 756, 788]
+        # scrollpositions = [335, 367, 400, 432, 464, 497, 529, 561, 594, 626, 659, 691, 723, 756, 788]
 
         currentscroll = 0
         best_distance = 999
-        if self.gs.hero.scrollbar in scrollpositions:
+        if self.gs.hero.scrollbar in self.gs.hero.scrollpositions:
             currentscroll = self.gs.hero.scrollbar
         else:
-            for target in scrollpositions:
+            for target in self.gs.hero.scrollpositions:
                 distance = abs(self.gs.hero.scrollbar - target)
                 if distance < best_distance:
                     best_distance = distance
@@ -489,7 +524,7 @@ class Hero(object):
 
         scroll = 0
         if self.order < lowestorderhero.order:
-            ticks_to_top = (currentscroll - 335) // 32
+            ticks_to_top = (currentscroll - self.gs.hero.scrollpositions[0]) // 32
             if DEBUG:
                 print("ticks to top", ticks_to_top)
             heroes_per_tick = (lowestorderhero.order - 1) / ticks_to_top
@@ -506,7 +541,7 @@ class Hero(object):
                         print("final scroll", scroll)
                     break
         else:
-            ticks_to_bottom = (788 - currentscroll) // 32
+            ticks_to_bottom = (self.gs.hero.scrollpositions[-1] - currentscroll) // 32
             if DEBUG:
                 print("ticks to bottom", ticks_to_bottom)
             heroes_per_tick = (highest_order_hero.order - highestorderhero.order) / ticks_to_bottom
