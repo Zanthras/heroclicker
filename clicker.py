@@ -25,6 +25,7 @@ import PIL
 from PIL import ImageGrab
 import pyttsx
 import pyautogui as gui
+import pytesseract
 from pytesseract import image_to_string
 
 from crab import Crab, STD, COMPOSITE
@@ -543,5 +544,9 @@ def run():
         cycle_status += " " * (max_print_size - len(cycle_status))
         print(cycle_status, end="")
 
+with open("tesseract_location.txt") as f:
+    loc = f.read().strip()
+
+pytesseract.pytesseract.tesseract_cmd = loc
 
 run()
