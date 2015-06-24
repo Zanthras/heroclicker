@@ -25,6 +25,7 @@ import pyautogui as gui
 
 from win32con import MOUSEEVENTF_WHEEL
 import win32api
+import win32gui
 
 
 class Window(object):
@@ -123,12 +124,21 @@ class Window(object):
         c = 0
 
         while True:
-            self.screen = PIL.ImageGrab.grab()
-            potentialbox = self.find_window()
-            realsize = (potentialbox[2] - potentialbox[0], potentialbox[3] - potentialbox[1])
-            print("\rWidth: " + str(self.desiredsize[0]-realsize[0]) + " Height: " + str(self.desiredsize[1]-realsize[1]) + " " + str(c), end="")
-            if (self.desiredsize[0]-realsize[0], self.desiredsize[1]-realsize[1]) == (0, 0):
-                break
+            hwnd = win32gui.GetForegroundWindow()
+            if win32gui.GetWindowText(hwnd) == "Clicker Heroes":
+                rect = win32gui.GetWindowRect(hwnd)
+                x = rect[0]
+                y = rect[1]
+                w = rect[2] - x
+                h = rect[3] - y
+                if (w, h) == self.desiredsize:
+                    print("\rClicker Heroes located and is sized correctly                                     ", end="")
+                    break
+                else:
+                    win32gui.SetWindowPos(hwnd, 0, x, y, self.desiredsize[0], self.desiredsize[1], 0)
+            else:
+                print("\rplease bring the clicker hero window into focus(make it the active window)", c, end="")
+
             time.sleep(.1)
             c += 1
         print()
@@ -138,24 +148,20 @@ class Window(object):
         self.screen = PIL.ImageGrab.grab()
         if self.gs.idle:
             return
-        try:
-            potentialbox = self.find_window()
-            left, top, right, bottom = potentialbox
-            windowheight = bottom-top
-            windowwidth = right-left
-            if windowheight == self.desiredsize[1] and windowwidth == self.desiredsize[0]:
-                self.infocus = True
-                if self.box != potentialbox:
-                    if not self.gs.silent:
-                        self.gs.engine.say("window position is locked in")
-                        self.gs.engine.runAndWait()
-                self.box = potentialbox
-
+        hwnd = win32gui.GetForegroundWindow()
+        if win32gui.GetWindowText(hwnd) == "Clicker Heroes":
+            rect = win32gui.GetWindowRect(hwnd)
+            x = rect[0]
+            y = rect[1]
+            w = rect[2] - x
+            h = rect[3] - y
+            if (w, h) != self.desiredsize:
+                win32gui.SetWindowPos(hwnd, 0, x, y, self.desiredsize[0], self.desiredsize[1], 0)
             else:
-                self.infocus = False
-        except:
+                self.box = rect
+            self.infocus = True
+        else:
             self.infocus = False
-            pass
 
     def update_screen(self):
 

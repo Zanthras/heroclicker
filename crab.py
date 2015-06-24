@@ -25,8 +25,8 @@ from PIL import Image
 import numpy
 import pyautogui as gui
 
-import matplotlib
-import matplotlib.pyplot as plt
+# import matplotlib
+# import matplotlib.pyplot as plt
 
 BLACK = (0,0,0)
 WHITE = (255,255,255)

@@ -480,6 +480,7 @@ def run():
     gs.window.adjust_size()
 
     loop = 0
+    max_print_size = 0
     while True:
         loop += 1
         cycle_start = datetime.datetime.now()
@@ -537,7 +538,9 @@ def run():
 
         cycle_status += " Ascend:" + output
         cycle_status += " " + gs.step
-
+        if len(cycle_status) > max_print_size:
+            max_print_size = len(cycle_status)
+        cycle_status += " " * (max_print_size - len(cycle_status))
         print(cycle_status, end="")
 
 

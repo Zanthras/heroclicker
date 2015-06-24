@@ -48,10 +48,17 @@ Even Longer term plans:
 Application requirements...
 
 Python3
-
+https://www.python.org/downloads/release/python-343/
 PIL (python 3 version)
+http://pillow.readthedocs.org/en/latest/installation.html#basic-installation
 pyttsx (for the audio feedback)
+https://pypi.python.org/pypi/pyttsx
 pyautogui (handles all the mouse/keyboard control)
+https://pypi.python.org/pypi/PyAutoGUI
 numpy (performs the grunt work in image comparison)
+http://sourceforge.net/projects/numpy/files/NumPy/1.9.2/
 pytesseract (ocr engine to read the hero names/level)
-matplotlib (because i havent commented it out yet)
+https://pypi.python.org/pypi/pytesseract/0.1
+http://code.google.com/p/tesseract-ocr/
+pywin32 (python for windows extensions for windows api calls)
+http://sourceforge.net/projects/pywin32/
