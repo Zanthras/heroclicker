@@ -473,6 +473,7 @@ def screenshot():
 
 
 def run():
+    os.system("mode con cols=180 lines=20")
 
     gs = GameState(engine=pyttsx.init())
 
@@ -541,7 +542,7 @@ def run():
         cycle_status += " " + gs.step
         if len(cycle_status) > max_print_size:
             max_print_size = len(cycle_status)
-        cycle_status += " " * (max_print_size - len(cycle_status))
+        print("\r" + " " * max_print_size, end="")
         print(cycle_status, end="")
 
 with open("tesseract_location.txt") as f:
