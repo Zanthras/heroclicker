@@ -23,7 +23,7 @@ import time
 
 import PIL
 from PIL import ImageGrab
-import pyttsx
+#import pyttsx
 import pyautogui as gui
 import pytesseract
 from pytesseract import image_to_string
@@ -484,7 +484,7 @@ def screenshot():
 def run():
     os.system("mode con cols=180 lines=20")
 
-    gs = GameState(engine=pyttsx.init())
+    gs = GameState(engine=None)
 
     gs.silent = True
 
