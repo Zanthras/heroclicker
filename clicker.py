@@ -321,7 +321,7 @@ class GameState(object):
 
         first_hero = False
         if "Frostleaf" in self.hero.heroes:
-            if self.hero.heroes['Frostleaf'].level < 200:
+            if self.hero.heroes['Frostleaf'].level < 400:
                 first_hero = self.hero.heroes['Frostleaf']
 
         get_to_500 = None
@@ -339,12 +339,12 @@ class GameState(object):
                     upgraded = False
 
         if first_hero:
-            self.step = "Buying Frostleaf up to 200"
+            self.step = "Buying Frostleaf up to 400"
             self.hero.tracked = first_hero
             if self.hero.tracked.ishidden:
                 self.hero.tracked.scroll_to()
             else:
-                self.hero.tracked.buy_up_to(200)
+                self.hero.tracked.buy_up_to(400)
                 if not self.progression_state:
                     self.window.click(self.progression_coord)
         elif get_to_500:
@@ -428,6 +428,15 @@ class GameState(object):
         currentMouseX, currentMouseY = gui.position()
         gui.click(coord[0], coord[1])
         gui.moveTo(currentMouseX, currentMouseY)
+
+    def destroy_relics(self):
+
+        self.window.click((self.window.box[0] + 553, self.window.box[1] + 171))
+        self.window.click((self.window.box[0] + 417, self.window.box[1] + 650))
+        self.window.click((self.window.box[0] + 723, self.window.box[1] + 598))
+        self.window.click((self.window.box[0] + 84, self.window.box[1] + 176))
+
+
 
 
 def capture():
@@ -550,4 +559,7 @@ with open("tesseract_location.txt") as f:
 
 pytesseract.pytesseract.tesseract_cmd = loc
 
-run()
+try:
+    run()
+except KeyboardInterrupt:
+    print("\nBot Stopped", end="")

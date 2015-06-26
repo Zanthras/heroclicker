@@ -213,6 +213,7 @@ class Heroes(object):
             if god.level < 150:
                 god.buy_up_to(150)
             else:
+                self.gs.destroy_relics()
                 print(" ASCENDED! +", self.gs.souls, "souls")
                 god.scroll_to()
                 self.gs.window.update_screen()
