@@ -314,6 +314,8 @@ class Hero(object):
             self.name = "Frostleaf"
         elif self.name.find("."):
             self.name = self.name.replace(".", ",")
+        elif self.name.find("Natalia") > -1: and self.name not in order:
+            self.name = "Natalia, Ice Apprentice"
         if self.name not in order and self.name:
             print("hero name i dont know", self.name)
         # for whatever reason the ocr completely fails on lilin, so lets check the scroll bar
