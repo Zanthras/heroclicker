@@ -208,6 +208,8 @@ class GameState(object):
                 past_plus = True
             if past_plus and c == "e":
                 cleaned_raw += c
+            if past_plus and c == "a":
+                cleaned_raw += "4"
         # print(cleaned_raw)
         if "e" not in cleaned_raw:
             if cleaned_raw:
@@ -435,8 +437,6 @@ class GameState(object):
         self.window.click((self.window.box[0] + 417, self.window.box[1] + 650))
         self.window.click((self.window.box[0] + 723, self.window.box[1] + 598))
         self.window.click((self.window.box[0] + 84, self.window.box[1] + 176))
-
-
 
 
 def capture():

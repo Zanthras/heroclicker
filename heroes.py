@@ -215,6 +215,8 @@ class Heroes(object):
             else:
                 self.gs.destroy_relics()
                 print(" ASCENDED! +", self.gs.souls, "souls")
+                self.gs.window.update_screen()
+                self.collect_visible_heroes(force=True)
                 god.scroll_to()
                 self.gs.window.update_screen()
                 self.collect_visible_heroes(force=True)
