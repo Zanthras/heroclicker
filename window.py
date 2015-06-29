@@ -182,3 +182,19 @@ class Window(object):
         currentMouseX, currentMouseY = gui.position()
         gui.click(coord[0], coord[1])
         gui.moveTo(currentMouseX, currentMouseY)
+
+if __name__ == "__main__":
+
+    start = datetime.datetime.now()
+    for i in range(100):
+        PIL.ImageGrab.grab()
+    print(datetime.datetime.now()-start)
+    hwnd = win32gui.GetForegroundWindow()
+    if win32gui.GetWindowText(hwnd) == "Clicker Heroes":
+        nextstart = datetime.datetime.now()
+        for i in range(100):
+            hwnd2 = win32gui.GetForegroundWindow()
+            win32gui.GetWindowText(hwnd2)
+            rect = win32gui.GetWindowRect(hwnd2)
+            PIL.ImageGrab.grab(rect)
+        print(datetime.datetime.now()-nextstart)

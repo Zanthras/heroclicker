@@ -1,0 +1,1 @@
+souls per minute logs go here one per run, tracks the timestamp, the current souls per minute and the peak for the interested parties

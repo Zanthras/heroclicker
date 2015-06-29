@@ -209,27 +209,30 @@ class Heroes(object):
         god = None
         if "Amenhotep" in self.heroes:
             god = self.heroes["Amenhotep"]
-        if god and self.gs.clickablesready and not self.gs.click_clickables:
+        if god and self.gs.clickablesready and not self.gs.click_clickables and self.gs.window.infocus:
             if god.level < 150:
                 god.buy_up_to(150)
             else:
                 self.gs.destroy_relics()
                 print(" ASCENDED! +", self.gs.souls, "souls")
-                self.gs.window.update_screen()
-                self.collect_visible_heroes(force=True)
-                god.scroll_to()
-                self.gs.window.update_screen()
-                self.collect_visible_heroes(force=True)
+                while god.ishidden:
+                    # print("amen is hidden scrolling to him")
+                    god.scroll_to()
+                    self.gs.window.update_screen()
+                    self.collect_visible_heroes(force=True)
+                    # print("visible heroes", self.visible)
                 # box = (god.base[0] + 197 - 26, god.base[1] + 103 - 25, god.base[0] + 197 + 26, god.base[1] + 103 + 25)
                 # self.gs.window.screen.crop(box).show()
+                # print("clicking on ascension")
                 self.gs.window.click((god.base[0]+197, god.base[1]+103))
                 self.gs.window.update_screen()
                 # self.gs.window.screen.show()
+                # print("going... going..... gone")
                 self.gs.window.click((self.gs.window.box[0]+725, self.gs.window.box[1]+620))
-
+                # print("resetting everything")
                 for heroname in self.heroes:
                     self.heroes[heroname].reset()
-
+                self.heroes = {}
                 self.gs.souls = 0
                 self.gs.peakspm = 0
                 self.gs._existingsouls = 0
@@ -237,11 +240,11 @@ class Heroes(object):
                 self.gs.lastpeak = datetime.datetime.now()
                 self.gs.click_clickables = True
                 self.gs.ascensionstart = datetime.datetime.now().replace(microsecond=0)
+                self.gs.log = open("logs/" + str(self.gs.ascensionstart).replace(":", "-").replace(" ", "-") + ".log", "w")
                 self.gs.clickablesready[0].savegood()
                 self.gs.clickablesready[0].click()
                 time.sleep(3)
                 self.collect_all_heroes()
-                self.gs.window.scroll(-2)
         else:
             return
 
@@ -432,7 +435,7 @@ class Hero(object):
                 return True
             else:
                 if timer:
-                    self.check_interval *= 2
+                    self.check_interval *= 1.2
                     if self.check_interval > datetime.timedelta(minutes=30):
                         self.check_interval = datetime.timedelta(minutes=30)
         if hotkey:
@@ -481,7 +484,7 @@ class Hero(object):
                         if amount-self.level < 10 and purchased_one:
                             self.check_interval *= .75
                         else:
-                            self.check_interval *= 1.5
+                            self.check_interval *= 1.2
                             if self.check_interval > datetime.timedelta(minutes=30):
                                 self.check_interval = datetime.timedelta(minutes=30)
                     return
@@ -489,6 +492,10 @@ class Hero(object):
                     purchased_one = True
 
     def scroll_to(self, wait=False):
+
+        # the function should do nothing when nothing is required making this function free to call
+        if self.isvisible:
+            return
 
         if wait:
             self.gs.visiblewait = True

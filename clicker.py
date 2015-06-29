@@ -21,17 +21,39 @@ import sys
 import datetime
 import time
 
-import PIL
-from PIL import ImageGrab
-#import pyttsx
-import pyautogui as gui
-import pytesseract
-from pytesseract import image_to_string
+import pip
+
+try:
+    import PIL
+    from PIL import ImageGrab
+except ImportError:
+    print("Installing Pillow/PIP")
+    pip.main(["pip", "install", "Pillow"])
+    import PIL
+    from PIL import ImageGrab
+try:
+    import pyautogui as gui
+except ImportError:
+    pip.main(["pip", "install", "pyautogui"])
+    import pyautogui as gui
+try:
+    import pytesseract
+    from pytesseract import image_to_string
+except ImportError:
+    pip.main(["pip", "install", "pytesseract"])
+    import pytesseract
+    from pytesseract import image_to_string
+
+with open("tesseract_location.txt") as f:
+    loc = f.read().strip()
+
+pytesseract.pytesseract.tesseract_cmd = loc
 
 from crab import Crab, STD, COMPOSITE
 from skill import Skill
 from window import Window
 from heroes import Heroes
+from bot import program
 
 
 class GameState(object):
@@ -73,6 +95,7 @@ class GameState(object):
         # What step am I on for the gameplay
         self.step = "None"
         self.ascensiondesired = False
+        self.log = open("logs/" + str(self.ascensionstart).replace(":", "-").replace(" ", "-") + ".log", "w")
 
     def collect_skill_state(self):
 
@@ -319,75 +342,6 @@ class GameState(object):
                     print("\rMoving the mouse to a better spot since you appear to be idle".ljust(140, " "))
                     self.idle = True
 
-    def not_as_dumb_buy(self):
-
-        first_hero = False
-        if "Frostleaf" in self.hero.heroes:
-            if self.hero.heroes['Frostleaf'].level < 400:
-                first_hero = self.hero.heroes['Frostleaf']
-
-        get_to_500 = None
-        upgraded = True
-        for heroname in self.hero.heroes:
-            if self.hero.heroes[heroname].order < 27:
-                if self.hero.heroes[heroname].level < 200:
-                    if get_to_500 is None:
-                        get_to_500 = self.hero.heroes[heroname]
-                    else:
-                        if get_to_500.order > self.hero.heroes[heroname].order:
-                            get_to_500 = self.hero.heroes[heroname]
-                if not self.hero.heroes[heroname].upgraded:
-                    # print(self.hero.heroes[heroname], "not upgraded")
-                    upgraded = False
-
-        if first_hero:
-            self.step = "Buying Frostleaf up to 400"
-            self.hero.tracked = first_hero
-            if self.hero.tracked.ishidden:
-                self.hero.tracked.scroll_to()
-            else:
-                self.hero.tracked.buy_up_to(400)
-                if not self.progression_state:
-                    self.window.click(self.progression_coord)
-        elif get_to_500:
-            self.step = "Buying 200 of every hero up to frostleaf"
-            self.hero.tracked = get_to_500
-            if get_to_500.ishidden:
-                # print("scrolling")
-                get_to_500.scroll_to()
-            else:
-                # print("buying")
-                get_to_500.buy_up_to(200)
-        elif not upgraded:
-            self.step = "Upgrading all Heroes up to frostleaf"
-            self.hero.upgrade()
-        elif self.hero.heroes["The Masked Samurai"].level < 2400:
-            self.step = "Buying 2400 samurai"
-            self.hero.tracked = self.hero.heroes["The Masked Samurai"]
-            if self.hero.tracked.ishidden:
-                self.hero.tracked.scroll_to()
-            else:
-                if self.hero.tracked.buy_timer():
-                    self.hero.tracked.buy_up_to(2400)
-                    if self.hero.tracked.level - self.hero.tracked.progression_level >= 25 and not self.progression_state:
-                        self.click(self.progression_coord)
-        elif "Terra" not in self.hero.heroes:
-            self.step = "Trying to locate Terra"
-            self.hero.scroll_to_bottom()
-        else:
-            self.step = "Buying inf Terra"
-            final_hero = self.hero.heroes["Terra"]
-            self.hero.tracked = final_hero
-            if final_hero.ishidden:
-                final_hero.scroll_to()
-            elif not final_hero.upgraded and final_hero.level >= 200:
-                self.step = "Upgrading Terra"
-                self.hero.upgrade()
-            elif final_hero.try_buy(25):
-                if not self.progression_state:
-                    # print("\nunlocking progression, 25 heroes bought")
-                    self.window.click(self.progression_coord)
-
     def calc_souls(self):
 
         ascension_minutes = (datetime.datetime.now() - self.ascensionstart).total_seconds()/60
@@ -433,10 +387,21 @@ class GameState(object):
 
     def destroy_relics(self):
 
+        # relic tab
         self.window.click((self.window.box[0] + 553, self.window.box[1] + 171))
+        time.sleep(.2)
+        # junk relics
         self.window.click((self.window.box[0] + 417, self.window.box[1] + 650))
+        time.sleep(.2)
+        # confirm
         self.window.click((self.window.box[0] + 723, self.window.box[1] + 598))
+        time.sleep(.2)
+        # hero tab
         self.window.click((self.window.box[0] + 84, self.window.box[1] + 176))
+        time.sleep(.2)
+        # since tab switching resets the menu position
+        self.window.update_screen()
+        self.hero.collect_visible_heroes(force=True)
 
 
 def capture():
@@ -460,25 +425,6 @@ def capture():
 
     gs.engine.say("Work Complete")
     gs.engine.runAndWait()
-
-
-def screenshot():
-    """
-    This function has nothing to do with hero clicker, i made it to screenshot witcher3
-    """
-
-    engine = pyttsx.init()
-
-    save_directory = r'F:\Documents\Python\heroclicker\unknown'
-
-    while True:
-        time.sleep(2)
-        img = PIL.ImageGrab.grab()
-        filename = 'ScreenShot_'+str(datetime.datetime.now().replace(microsecond=0)).replace(" ", "_").replace(":", "_") + '.jpg'
-        save_as = os.path.join(save_directory, filename)
-        img.save(save_as)
-        engine.say("Work Complete")
-        engine.runAndWait()
 
 
 def run():
@@ -505,6 +451,9 @@ def run():
 
         gs.collect_souls()
         gs.collect_clickables()
+        if ASCENSION_DEBUG:
+            gs.click_clickables = False
+            gs.hero.ascend()
 
         if gs.click_clickables and gs.clickablesready:
             clickable = gs.clickablesready.pop()
@@ -519,7 +468,8 @@ def run():
             gs.hero.collect_all_heroes()
         gs.hero.collect_visible_heroes()
 
-        gs.not_as_dumb_buy()
+        # execute bot instructions
+        program(gs)
         cycletime = datetime.datetime.now()-cycle_start
         if cycletime < datetime.timedelta(seconds=1):
             # print("time to sleep:", (datetime.timedelta(seconds=1)-cycletime).total_seconds())
@@ -553,13 +503,13 @@ def run():
             max_print_size = len(cycle_status)
         print("\r" + " " * max_print_size, end="")
         print(cycle_status, end="")
+        gs.log.write(str(int((now - gs.ascensionstart).total_seconds())) + "," + str(round(gs.peakspm)) + "," + str(round(spm)) + "\n" )
 
-with open("tesseract_location.txt") as f:
-    loc = f.read().strip()
+ASCENSION_DEBUG = False
 
-pytesseract.pytesseract.tesseract_cmd = loc
 
 try:
     run()
 except KeyboardInterrupt:
     print("\nBot Stopped", end="")
+
