@@ -60,7 +60,7 @@ class Heroes(object):
 
     def collect_visible_heroes(self, force=False):
 
-        if not self.gs.window.infocus:
+        if not self.gs.window.isinfocus():
             return
         # this is to let functions that dont directly call this method still specify force via a module level global
         if self.visiblewait:
@@ -78,8 +78,9 @@ class Heroes(object):
         bar_location = self.find_scrollbar()
 
         if bar_location == self.scrollbar:
-            # print("scrollbar didnt move")
-            return
+            if self.visible:
+                # print("scrollbar didnt move")
+                return
         else:
             # print(self.scrollbar)
             self.scrollbar = bar_location
@@ -149,7 +150,7 @@ class Heroes(object):
 
     def collect_all_heroes(self):
 
-        if self.gs.window.infocus:
+        if self.gs.window.isinfocus():
             # scroll to the top
             self.gs.window.scroll(15)
         self.gs.window.update_screen()
@@ -209,7 +210,7 @@ class Heroes(object):
         god = None
         if "Amenhotep" in self.heroes:
             god = self.heroes["Amenhotep"]
-        if god and self.gs.clickablesready and not self.gs.click_clickables and self.gs.window.infocus:
+        if god and self.gs.clickablesready and not self.gs.click_clickables and self.gs.window.isinfocus():
             if god.level < 150:
                 god.buy_up_to(150)
             else:
@@ -262,7 +263,7 @@ class Hero(object):
         self.name = ""
         self.level = 0
         self.buy_coord = (0, 0)
-        self.check_interval = datetime.timedelta(seconds=.1)
+        self.check_interval = datetime.timedelta(seconds=.5)
         self.lastcheck = datetime.datetime.now()
         self.isvisible = True
         self.ishidden = False
@@ -418,7 +419,7 @@ class Hero(object):
                 return False
         if self.isvisible:
             if hotkey:
-                if not self.gs.window.infocus:
+                if not self.gs.window.isinfocus():
                     # print("exiting because window isnt in focus")
                     return False
                 gui.keyDown(key=hotkey)
@@ -444,52 +445,55 @@ class Hero(object):
 
     def buy_up_to(self, amount):
 
-        if not self.gs.window.infocus:
+        if not self.gs.window.isinfocus():
             return
-
-        can_buy_25 = True
-        can_buy_10 = True
-        purchased = False
-        purchased_one = False
-        while self.level < amount:
-            if self.can_buy_100 and amount-self.level >= 100:
-                # print("trying to buy 100", self)
-                if not self.try_buy(100, timer=False):
-                    # print("cant ever buy 100 of", self)
-                    self.can_buy_100 = False
-                else:
-                    purchased = True
-            elif can_buy_25 and amount-self.level >= 25:
-                # print("trying to buy 25", self)
-                if not self.try_buy(25, timer=False):
-                    # print("cant buy 25 of", self)
-                    can_buy_25 = False
-                else:
-                    purchased = True
-            elif can_buy_10 and amount-self.level >= 10:
-                # print("trying to buy 10", self)
-                if not self.try_buy(10, timer=False):
-                    # print("cant buy 10 of", self)
-                    can_buy_10 = False
-                else:
-                    purchased = True
-            else:
-                # print("trying to buy 1", self)
-                self.gs.window.update_screen()
-                if not self.try_buy(1, timer=False):
-                    # print("done buying", self)z
-                    if purchased:
-                        self.check_interval *= .75
+        if self.ishidden:
+            self.scroll_to()
+            return
+        else:
+            can_buy_25 = True
+            can_buy_10 = True
+            purchased = False
+            purchased_one = False
+            while self.level < amount:
+                if self.can_buy_100 and amount-self.level >= 100:
+                    # print("trying to buy 100", self)
+                    if not self.try_buy(100, timer=False):
+                        # print("cant ever buy 100 of", self)
+                        self.can_buy_100 = False
                     else:
-                        if amount-self.level < 10 and purchased_one:
+                        purchased = True
+                elif can_buy_25 and amount-self.level >= 25:
+                    # print("trying to buy 25", self)
+                    if not self.try_buy(25, timer=False):
+                        # print("cant buy 25 of", self)
+                        can_buy_25 = False
+                    else:
+                        purchased = True
+                elif can_buy_10 and amount-self.level >= 10:
+                    # print("trying to buy 10", self)
+                    if not self.try_buy(10, timer=False):
+                        # print("cant buy 10 of", self)
+                        can_buy_10 = False
+                    else:
+                        purchased = True
+                else:
+                    # print("trying to buy 1", self)
+                    self.gs.window.update_screen()
+                    if not self.try_buy(1, timer=False):
+                        # print("done buying", self)z
+                        if purchased:
                             self.check_interval *= .75
                         else:
-                            self.check_interval *= 1.2
-                            if self.check_interval > datetime.timedelta(minutes=30):
-                                self.check_interval = datetime.timedelta(minutes=30)
-                    return
-                else:
-                    purchased_one = True
+                            if amount-self.level < 10 and purchased_one:
+                                self.check_interval *= .75
+                            else:
+                                self.check_interval *= 1.2
+                                if self.check_interval > datetime.timedelta(minutes=30):
+                                    self.check_interval = datetime.timedelta(minutes=30)
+                        return
+                    else:
+                        purchased_one = True
 
     def scroll_to(self, wait=False):
 
@@ -505,8 +509,6 @@ class Hero(object):
         # if there are no visible heroes calculation is impossible dont do shit.
         if not self.gs.hero.visible:
             return
-
-        # scrollpositions = [335, 367, 400, 432, 464, 497, 529, 561, 594, 626, 659, 691, 723, 756, 788]
 
         currentscroll = 0
         best_distance = 999
@@ -551,8 +553,9 @@ class Hero(object):
         # or self is #10 (alex) i need to move down one click
 
         scroll = 0
+        pixels_per_scrollbar_tick = 32
         if self.order < lowestorderhero.order:
-            ticks_to_top = (currentscroll - self.gs.hero.scrollpositions[0]) // 32
+            ticks_to_top = (currentscroll - self.gs.hero.scrollpositions[0]) // pixels_per_scrollbar_tick
             if DEBUG:
                 print("ticks to top", ticks_to_top)
             heroes_per_tick = (lowestorderhero.order - 1) / ticks_to_top
@@ -569,7 +572,7 @@ class Hero(object):
                         print("final scroll", scroll)
                     break
         else:
-            ticks_to_bottom = (self.gs.hero.scrollpositions[-1] - currentscroll) // 32
+            ticks_to_bottom = (self.gs.hero.scrollpositions[-1] - currentscroll) // pixels_per_scrollbar_tick
             if DEBUG:
                 print("ticks to bottom", ticks_to_bottom)
             heroes_per_tick = (highest_order_hero.order - highestorderhero.order) / ticks_to_bottom

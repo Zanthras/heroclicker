@@ -26,7 +26,7 @@ import pyautogui as gui
 from win32con import MOUSEEVENTF_WHEEL
 import win32api
 import win32gui
-
+import win32con
 
 class Window(object):
 
@@ -37,8 +37,6 @@ class Window(object):
         # left, top, right, bottom
         self.box = (0, 0, 0, 0)
         self.desiredsize = (1662, 942)
-        self.infocus = False
-
 
     def find_window(self):
 
@@ -125,7 +123,7 @@ class Window(object):
 
         while True:
             hwnd = win32gui.GetForegroundWindow()
-            if win32gui.GetWindowText(hwnd) == "Clicker Heroes":
+            if self.isinfocus():
                 rect = win32gui.GetWindowRect(hwnd)
                 x = rect[0]
                 y = rect[1]
@@ -146,6 +144,7 @@ class Window(object):
     def collect_screen(self):
 
         self.screen = PIL.ImageGrab.grab()
+
         if self.gs.idle:
             return
         hwnd = win32gui.GetForegroundWindow()
@@ -159,13 +158,11 @@ class Window(object):
                 win32gui.SetWindowPos(hwnd, 0, x, y, self.desiredsize[0], self.desiredsize[1], 0)
             else:
                 self.box = rect
-            self.infocus = True
-        else:
-            self.infocus = False
 
     def update_screen(self):
 
         self.screen = PIL.ImageGrab.grab()
+
 
     def scroll(self, amount):
 
@@ -179,9 +176,22 @@ class Window(object):
 
     def click(self, coord):
 
-        currentMouseX, currentMouseY = gui.position()
-        gui.click(coord[0], coord[1])
-        gui.moveTo(currentMouseX, currentMouseY)
+        if self.isinfocus():
+            current = win32gui.GetCursorPos()
+            win32api.SetCursorPos(coord)
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, coord[0], coord[1], 0, 0)
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, coord[0], coord[1], 0, 0)
+            time.sleep(2/60)
+            win32api.SetCursorPos((self.box[0]+30, self.box[1]+30))
+            time.sleep(2/60)
+            win32api.SetCursorPos(current)
+
+    def isinfocus(self):
+
+        if win32gui.GetWindowText(win32gui.GetForegroundWindow()) == "Clicker Heroes":
+            return True
+        else:
+            return False
 
 if __name__ == "__main__":
 

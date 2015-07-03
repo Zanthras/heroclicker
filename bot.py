@@ -28,35 +28,26 @@ def program(gs):
             # we now assign frostleaf to the variable
             first_hero = gs.hero.heroes['Frostleaf']
 
-    # the next bot step will be to level up every hero up to frost leaf to level 200 and buy them upgrades
-    get_to_200 = False
-    # since we want to capture if any hero isnt upgrades we first assume they are upgraded that way if 26 are and 1 isnt it will still work
-    upgraded = True
-    # we start by iterating over every hero the bot knows about
+    damage_upgrades = False
+    damage_upgrades_upgrade = True
+    gd = [5, 6, 8, 14, 16, 20, 21, 24, 25]
     for heroname in gs.hero.heroes:
-        # we check if the order is below 27 (cid is order 1, treebeast is order 2, etc)
-        if gs.hero.heroes[heroname].order < 27:
-            # we check if their level is below 200
+        if gs.hero.heroes[heroname].order in gd:
             if gs.hero.heroes[heroname].level < 200:
-                # if this hero is the first one ive looked at it becomes the hero im going to upgrade
-                if not get_to_200:
-                    get_to_200 = gs.hero.heroes[heroname]
+                if not damage_upgrades:
+                    damage_upgrades = gs.hero.heroes[heroname]
                 else:
-                    # but if its the second one im going to check if the new hero is a lower order hero then the first one
-                    if get_to_200.order > gs.hero.heroes[heroname].order:
-                        # im going to make the lowest order hero be the hero to upgrade... this way i do them all in order
-                        get_to_200 = gs.hero.heroes[heroname]
-            # at the same time as im checking the hero level im also going to check if the hero isnt upgraded
+                    if damage_upgrades.order < gs.hero.heroes[heroname].order:
+                        damage_upgrades = gs.hero.heroes[heroname]
             if not gs.hero.heroes[heroname].upgraded:
-                # print(gs.hero.heroes[heroname], "not upgraded")
-                upgraded = False
+                damage_upgrades_upgrade = False
 
     # the next step will be to buy tons of samurai, 2400 of them to be precise
-    buy_samurai = False
+    buy_to_ranger = False
     # im going to combine the existance check and hte level check into a single call
-    if "The Masked Samurai" in gs.hero.heroes and gs.hero.heroes["The Masked Samurai"].level < 2400:
+    if "Frostleaf" in gs.hero.heroes and gs.hero.heroes["Frostleaf"].level < 1500:
         # and set my variable is both are true
-        buy_samurai = gs.hero.heroes["The Masked Samurai"]
+        buy_to_ranger = gs.hero.heroes["Frostleaf"]
 
     # because we want to execute all the bot steps in order, we are going to chain them all into an if/elif/elif/elif/elif/else type statement
     # this way it only excutes the first available instruction and slowly works through them all
@@ -66,54 +57,31 @@ def program(gs):
         gs.step = "Buying Frostleaf up to 400"
         # we set the tracked hero to be frostleaf, tracking is important if you want to see the details on the console and to have a proper buy timer
         gs.hero.tracked = first_hero
-        # if frostleaf isnt visible on screen he will be "ishidden" so we test that
-        if first_hero.ishidden:
-            # and we will scroll to him
-            first_hero.scroll_to()
-        else:
-            # if he isnt hidden we will just try to buy up to 400 (smartly buys as much as possible at a time)
-            gs.hero.tracked.buy_up_to(400)
-            # also if progression is turned off we will attempt to turn it on
-            if not gs.progression_state:
-                gs.window.click(gs.progression_coord)
-    # now if we found a hero that wasnt up to level 200 we are going to work on it
-    elif get_to_200:
-        # we set our step again
-        gs.step = "Buying 200 of every hero up to frostleaf"
-        # we set the tracked hero again
-        gs.hero.tracked = get_to_200
-        # we do the hidden check again
-        if get_to_200.ishidden:
-            # scroll again
-            get_to_200.scroll_to()
-        else:
-            # and buy
-            get_to_200.buy_up_to(200)
-    # after we finish buying all the heroes up to 200 we check if any of them need upgrading (should be all)
-    elif not upgraded:
-        # we set the step just to track
-        gs.step = "Upgrading all Heroes up to frostleaf"
-        # and we click buy all upgrades
+        # if he isnt hidden we will just try to buy up to 400 (smartly buys as much as possible at a time)
+        gs.hero.tracked.buy_up_to(400)
+        # also if progression is turned off we will attempt to turn it on
+    if not gs.progression_state:
+            gs.window.click(gs.progression_coord)
+    elif damage_upgrades:
+        gs.hero.tracked = damage_upgrades
+        gs.hero.tracked.buy_up_to(200)
+    elif not damage_upgrades_upgrade:
         gs.hero.upgrade()
-    # its samurai time!
-    elif buy_samurai:
+    # its up to ranger time
+    elif buy_to_ranger:
         # as usual set the step
-        gs.step = "Buying 2400 samurai"
+        gs.step = "Buying 1500 frostleaf"
         # set the tracking
-        gs.hero.tracked = gs.hero.heroes["The Masked Samurai"]
-        # scroll to the guy if required
-        if gs.hero.tracked.ishidden:
-            gs.hero.tracked.scroll_to()
-        else:
-            # new feature time... it might take a looong time to buy 2400, to so to save cpu cycles (its not free) we set a simple adaptive timer
-            # which slows down the buying attempts when they fail, and speeds them up on success so we test if the buy timer wants us to try to buy
-            if gs.hero.tracked.buy_timer():
-                # if wants us to buy we buy
-                gs.hero.tracked.buy_up_to(2400)
-                # finally if for whatever reason progression mode got turned off after we buy 25 more heroes we turn it back on..
-                # every heros level is captured when progression mode gets turned off, we can access what level it was at "gs.hero.tracked.progression_level"
-                if gs.hero.tracked.level - gs.hero.tracked.progression_level >= 25 and not gs.progression_state:
-                    gs.click(gs.progression_coord)
+        gs.hero.tracked = buy_to_ranger
+        # new feature time... it might take a looong time to buy 2400, to so to save cpu cycles (its not free) we set a simple adaptive timer
+        # which slows down the buying attempts when they fail, and speeds them up on success so we test if the buy timer wants us to try to buy
+        if gs.hero.tracked.buy_timer():
+            # if wants us to buy we buy
+            gs.hero.tracked.buy_up_to(1500)
+            # finally if for whatever reason progression mode got turned off after we buy 25 more heroes we turn it back on..
+            # every heros level is captured when progression mode gets turned off, we can access what level it was at "gs.hero.tracked.progression_level"
+            if gs.hero.tracked.level - gs.hero.tracked.progression_level >= 25 and not gs.progression_state:
+                gs.window.click(gs.progression_coord)
     # now that we have bought a ton of samurai its time to move on to terra, the bot probably hasnt seen terra yet (it appeared while buying samurai)
     elif "Terra" not in gs.hero.heroes:
         # so if it hasnt seen it we should just scroll to the very bottom of the hero list to discover it

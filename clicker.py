@@ -336,9 +336,8 @@ class GameState(object):
             delta = datetime.timedelta(minutes=10)
             if currentime - self.playeridletime > delta:
                 x, y = currentpos
-                if self.window.box[0] < x < self.window.box[2] and self.window.box[1] < y < self.window.box[3] and x != self.window.box[0]+30 and y != self.window.box[0]+3:
-                    gui.moveTo(self.window.box[0]+30, self.window.box[1]+3)
-                    gui.click(self.window.box[0]+30, self.window.box[1]+3)
+                if self.window.box[0] < x < self.window.box[2] and self.window.box[1] < y < self.window.box[3] and x != self.window.box[0]+30 and y != self.window.box[0]+30:
+                    gui.moveTo(self.window.box[0]+30, self.window.box[1]+30)
                     print("\rMoving the mouse to a better spot since you appear to be idle".ljust(140, " "))
                     self.idle = True
 
@@ -378,12 +377,6 @@ class GameState(object):
         #         print("data anomaly: asc_min", ascension_minutes, "souls", self.souls, "spm", spm, "existing", self._existingsouls)
 
         return spm
-
-    def click(self, coord):
-
-        currentMouseX, currentMouseY = gui.position()
-        gui.click(coord[0], coord[1])
-        gui.moveTo(currentMouseX, currentMouseY)
 
     def destroy_relics(self):
 
@@ -499,6 +492,7 @@ def run():
 
         cycle_status += " Ascend:" + output
         cycle_status += " " + gs.step
+        cycle_status += " " + str(len(gs.hero.visible))
         if len(cycle_status) > max_print_size:
             max_print_size = len(cycle_status)
         print("\r" + " " * max_print_size, end="")
