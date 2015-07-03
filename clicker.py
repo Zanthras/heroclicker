@@ -492,7 +492,6 @@ def run():
 
         cycle_status += " Ascend:" + output
         cycle_status += " " + gs.step
-        cycle_status += " " + str(len(gs.hero.visible))
         if len(cycle_status) > max_print_size:
             max_print_size = len(cycle_status)
         print("\r" + " " * max_print_size, end="")
