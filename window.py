@@ -37,6 +37,7 @@ class Window(object):
         # left, top, right, bottom
         self.box = (0, 0, 0, 0)
         self.desiredsize = (1662, 942)
+        self.settings_coord = (0, 0)
 
     def find_window(self):
 
@@ -158,6 +159,7 @@ class Window(object):
                 win32gui.SetWindowPos(hwnd, 0, x, y, self.desiredsize[0], self.desiredsize[1], 0)
             else:
                 self.box = rect
+                self.settings_coord = (self.box[0] + 1600, self.box[1] + 60)
 
     def update_screen(self):
 
@@ -186,12 +188,44 @@ class Window(object):
             time.sleep(2/60)
             win32api.SetCursorPos(current)
 
+    def drag(self, start_loc, end_loc):
+
+        if self.isinfocus():
+            current = win32gui.GetCursorPos()
+            win32api.SetCursorPos(start_loc)
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, start_loc[0], start_loc[1], 0, 0)
+            win32api.SetCursorPos(end_loc)
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, end_loc[0], end_loc[1], 0, 0)
+            win32api.SetCursorPos(current)
+
     def isinfocus(self):
 
         if win32gui.GetWindowText(win32gui.GetForegroundWindow()) == "Clicker Heroes":
             return True
         else:
             return False
+
+    def sweep_gold(self):
+
+        self.gs.step = "Collecting Gold"
+
+        #sweep from 1083, 634 to 1379, 709 in 34/2 width increments and 26/2 height increments
+        box = (1083, 634, 1379, 709)
+        coinwidth = 34
+        coinheight = 26
+
+        pos = [1083, 634]
+        current = win32gui.GetCursorPos()
+        while True:
+            cursor = (pos[0] + self.box[0], pos[1] + self.box[1])
+            win32api.SetCursorPos(cursor)
+            pos[0] += coinwidth//2
+            if pos[0] > box[2]:
+                pos[0] = box[0]
+                pos[1] += coinheight//2
+                if pos[1] > box[3]:
+                    win32api.SetCursorPos(current)
+                    break
 
 if __name__ == "__main__":
 

@@ -20,8 +20,6 @@ import datetime
 import time
 import sys
 
-
-
 import pyautogui as gui
 from pytesseract import image_to_string
 
@@ -37,6 +35,7 @@ class Heroes(object):
         self.heroes = {}
         self.scrollpositions = [4, 36, 69, 101, 133, 166, 198, 230, 263, 295, 328, 360, 392, 425, 457, 460]
         self.visiblewait = False
+        self.force_collect = False
 
     def find_scrollbar(self):
 
@@ -166,6 +165,9 @@ class Heroes(object):
         pos = self.find_scroll_position()
         if pos != self.scrollpositions[-1]:
             # print("scrolling to bottom")
+            # because the game is stupid and wont really scroll down to the bottom when it thinks its already at the bottom
+            # such as when new heroes have popped up, first scroll up then down to reset the games internal logic
+            self.gs.window.scroll(1)
             self.gs.window.scroll(-15)
 
     def find_scroll_position(self, amount=None):
@@ -203,6 +205,12 @@ class Heroes(object):
                 # print("setting", self.heroes[heroname], "to be upgraded")
                 self.heroes[heroname].upgraded = True
 
+    def click_tab(self):
+
+        print("clicking on the hero tab")
+        self.gs.window.click((self.gs.window.box[0] + 84, self.gs.window.box[1] + 176))
+        time.sleep(.1)
+
     def ascend(self):
 
         self.gs.click_clickables = False
@@ -214,7 +222,7 @@ class Heroes(object):
             if god.level < 150:
                 god.buy_up_to(150)
             else:
-                self.gs.destroy_relics()
+                self.gs.relics.manage_relics()
                 print(" ASCENDED! +", self.gs.souls, "souls")
                 while god.ishidden:
                     # print("amen is hidden scrolling to him")
@@ -244,7 +252,8 @@ class Heroes(object):
                 self.gs.log = open("logs/" + str(self.gs.ascensionstart).replace(":", "-").replace(" ", "-") + ".log", "w")
                 self.gs.clickablesready[0].savegood()
                 self.gs.clickablesready[0].click()
-                time.sleep(3)
+                time.sleep(1)
+                self.gs.window.sweep_gold()
                 self.collect_all_heroes()
         else:
             return
@@ -495,19 +504,21 @@ class Hero(object):
                     else:
                         purchased_one = True
 
-    def scroll_to(self, wait=False):
+    def scroll_to(self, wait=True):
 
         # the function should do nothing when nothing is required making this function free to call
         if self.isvisible:
             return
+        self.gs.step = "Scrolling to " + self.shortname
 
         if wait:
-            self.gs.visiblewait = True
+            self.gs.hero.visiblewait = True
 
         DEBUG = False
 
-        # if there are no visible heroes calculation is impossible dont do shit.
+        # if there are no visible heroes calculation is impossible trigger a forced hero collection.
         if not self.gs.hero.visible:
+            self.gs.hero.visiblewait = True
             return
 
         currentscroll = 0
@@ -591,7 +602,7 @@ class Hero(object):
         # pixels_per_scroll = 32
         # scrollbar_height = 453
         # current_pos = 756
-        self.gs.step = "Scrolling to " + self.shortname
+
         self.gs.window.scroll(scroll)
 
     def reset(self):

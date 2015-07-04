@@ -54,7 +54,7 @@ from skill import Skill
 from window import Window
 from heroes import Heroes
 from bot import program
-
+from relic import RelicInfo
 
 class GameState(object):
 
@@ -96,6 +96,8 @@ class GameState(object):
         self.step = "None"
         self.ascensiondesired = False
         self.log = open("logs/" + str(self.ascensionstart).replace(":", "-").replace(" ", "-") + ".log", "w")
+        # Relic information
+        self.relics = RelicInfo(self)
 
     def collect_skill_state(self):
 
@@ -377,24 +379,6 @@ class GameState(object):
         #         print("data anomaly: asc_min", ascension_minutes, "souls", self.souls, "spm", spm, "existing", self._existingsouls)
 
         return spm
-
-    def destroy_relics(self):
-
-        # relic tab
-        self.window.click((self.window.box[0] + 553, self.window.box[1] + 171))
-        time.sleep(.2)
-        # junk relics
-        self.window.click((self.window.box[0] + 417, self.window.box[1] + 650))
-        time.sleep(.2)
-        # confirm
-        self.window.click((self.window.box[0] + 723, self.window.box[1] + 598))
-        time.sleep(.2)
-        # hero tab
-        self.window.click((self.window.box[0] + 84, self.window.box[1] + 176))
-        time.sleep(.2)
-        # since tab switching resets the menu position
-        self.window.update_screen()
-        self.hero.collect_visible_heroes(force=True)
 
 
 def capture():
