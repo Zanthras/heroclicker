@@ -264,9 +264,9 @@ class RelicInfo(object):
 
     def manage_relics(self):
 
-        print("collecitng relics")
+        # print("collecitng relics")
         self.collect_relics()
-        print("scoring and moving desired relics")
+        # print("scoring and moving desired relics")
         self.score_relics()
-        print("trashing all remaining relics")
+        # print("trashing all remaining relics")
         self.destroy_relics()

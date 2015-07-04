@@ -207,7 +207,7 @@ class Heroes(object):
 
     def click_tab(self):
 
-        print("clicking on the hero tab")
+        # print("clicking on the hero tab")
         self.gs.window.click((self.gs.window.box[0] + 84, self.gs.window.box[1] + 176))
         time.sleep(.1)
 
@@ -242,6 +242,7 @@ class Heroes(object):
                 for heroname in self.heroes:
                     self.heroes[heroname].reset()
                 self.heroes = {}
+                self.gs.relics.relics = []
                 self.gs.souls = 0
                 self.gs.peakspm = 0
                 self.gs._existingsouls = 0
